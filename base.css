@@ -1,0 +1,301 @@
+@charset "UTF-8";
+*,
+*::before,
+*::after {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+  text-rendering: optimizeLegibility;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  -webkit-overflow-scrolling: touch;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior: none;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  padding: 2rem;
+  font-family: "Montserrat", sans-serif;
+  font-optical-sizing: auto;
+  font-weight: 400;
+  font-style: normal;
+}
+
+/* Block elements */
+article,
+aside,
+details,
+figcaption,
+figure,
+footer,
+header,
+hgroup,
+main,
+nav,
+section {
+  display: block;
+}
+
+/* Typography reset */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+p {
+  font-size: inherit;
+  font-weight: inherit;
+  overflow-wrap: break-word;
+}
+
+/* Lists */
+ul,
+ol {
+  list-style: none;
+}
+
+/* Links */
+a {
+  color: inherit;
+  text-decoration: none;
+}
+a:focus-visible {
+  outline: 2px solid #FFFFFF;
+  outline-offset: 2px;
+}
+
+/* Media elements */
+img,
+picture,
+video,
+canvas,
+svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  vertical-align: top;
+}
+
+/* Firefox fix: убираем max-width для SVG в Firefox */
+@supports (-moz-appearance: none) {
+  svg {
+    max-width: none;
+  }
+}
+/* Альтернативный способ для Firefox (устаревший, но может понадобиться для старых версий) */
+/* @-moz-document url-prefix() {
+	svg {
+		max-width: none;
+	}
+} */
+/* Улучшения для изображений */
+img {
+  image-rendering: -webkit-optimize-contrast;
+}
+
+/* SVG improvements */
+svg {
+  overflow: hidden;
+}
+
+/* Address */
+address {
+  font-style: normal;
+}
+
+/* Form elements */
+input,
+button,
+textarea,
+select {
+  font: inherit;
+  color: inherit;
+  background: transparent;
+  border: none;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+}
+
+input::-ms-clear,
+input::-ms-reveal {
+  display: none;
+}
+
+input[type=number]::-webkit-outer-spin-button,
+input[type=number]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type=number] {
+  -moz-appearance: textfield;
+}
+
+input[type=search]::-webkit-search-decoration, input[type=search]::-webkit-search-cancel-button, input[type=search]::-webkit-search-results-button, input[type=search]::-webkit-search-results-decoration {
+  -webkit-appearance: none;
+}
+
+button,
+input[type=submit],
+input[type=button] {
+  cursor: pointer;
+}
+button::-moz-focus-inner,
+input[type=submit]::-moz-focus-inner,
+input[type=button]::-moz-focus-inner {
+  border: 0;
+  padding: 0;
+}
+button,
+input[type=submit],
+input[type=button] {
+  touch-action: manipulation;
+}
+
+label {
+  cursor: pointer;
+  user-select: none;
+}
+
+fieldset {
+  border: none;
+  padding: 0;
+  margin: 0;
+}
+
+legend {
+  display: table;
+}
+
+/* Table improvements */
+table {
+  border-collapse: collapse;
+  border-spacing: 0;
+}
+
+th,
+td {
+  text-align: left;
+  vertical-align: top;
+}
+
+/* Textarea improvements */
+textarea {
+  resize: vertical;
+  overflow: auto;
+}
+
+/* Progress and meter */
+progress,
+meter {
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+/* Details and summary */
+details {
+  display: block;
+}
+
+summary {
+  display: list-item;
+  cursor: pointer;
+}
+
+/* Hidden attribute support */
+[hidden] {
+  display: none !important;
+}
+
+/* Accessibility improvements */
+/* Уважение к предпочтениям пользователя по анимации */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  * {
+    border-color: currentColor;
+  }
+}
+.container {
+	max-width: 800px;
+	margin: 0 auto;
+	background: rgba(255, 255, 255, 0.95);
+	padding: 2rem;
+	border-radius: 16px;
+	backdrop-filter: blur(20px);
+}
+
+.demo-button {
+	background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+	color: white;
+	border: none;
+	padding: 12px 24px;
+	border-radius: 8px;
+	cursor: pointer;
+	margin: 10px;
+	font-size: 16px;
+	transition: transform 0.2s;
+}
+
+.demo-button:hover {
+	transform: translateY(-2px);
+}
+
+.demo-form {
+	max-width: 400px;
+}
+
+.demo-form label {
+	display: block;
+	margin-bottom: 5px;
+	font-weight: 500;
+}
+
+.demo-form input,
+.demo-form textarea {
+	width: 100%;
+	padding: 8px 12px;
+	margin-bottom: 15px;
+	border: 1px solid #ddd;
+	border-radius: 6px;
+	box-sizing: border-box;
+	font-size: 14px;
+}
+
+.demo-form button {
+	background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+	color: white;
+	padding: 10px 20px;
+	border: none;
+	border-radius: 6px;
+	cursor: pointer;
+	font-size: 14px;
+}
+
+/* Demo-only: hide inline modal content on the page, but show inside LightModal */
+.inline-content {
+	display: none !important;
+}
+
+.lm-content .inline-content {
+	display: block !important;
+}

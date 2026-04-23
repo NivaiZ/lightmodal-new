@@ -1,0 +1,13 @@
+{
+  "id": 123,
+  "name": "Demo Product",
+  "price": 1990,
+  "currency": "₽",
+  "description": "JSON ответ, который рендерится через ajaxSuccess(data).",
+  "image": "assets/nasa/PIA17283.jpg",
+  "features": [
+    "type: 'json' + ajaxSuccess",
+    "можно вернуть строку HTML или DOM Element",
+    "если ajaxSuccess не задан — покажется <pre>"
+  ]
+}
