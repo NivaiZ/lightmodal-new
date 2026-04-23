@@ -38,6 +38,7 @@
 
 ## 🧪 Демо / витрина
 
+- **Онлайн:** [https://nivaiz.github.io/lightmodal-new/](https://nivaiz.github.io/lightmodal-new/) — та же витрина на GitHub Pages.
 - **`index.html`** — витринная страница со всеми типами контента и примерами опций/событий.
 - **`demo/ajax.html`** и **`demo/product.json`** — локальные фикстуры для проверки `type: 'ajax'` / `type: 'json'`.
 
