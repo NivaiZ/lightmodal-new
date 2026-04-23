@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Verify required files exist
+        shell: bash
+        run: |
+          set -euo pipefail
+          for f in \
+            lightmodal.js \
+            lightmodal.min.js \
+            lightmodal.css \
+            lightmodal.min.css \
+            index.html \
+            index.js \
+            readme.md \
+            ROADMAP.md \
+            demo/ajax.html \
+            demo/product.json
+          do
+            test -f "$f" || (echo "Missing file: $f" && exit 1)
+          done
+
+      - name: Parse-check lightmodal.js
+        run: node --check lightmodal.js
+
+      - name: Parse-check lightmodal.min.js
+        run: node --check lightmodal.min.js
+
+      - name: Parse-check index.js
+        run: node --check index.js
