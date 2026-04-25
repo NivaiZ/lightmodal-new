@@ -4,8 +4,8 @@
   "description": "Zero-dependency vanilla JS modal library",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "npm run build:js && npm run build:css",
+    "dev": "node scripts/html-refs.js dev && vite",
+    "build": "npm run build:js && npm run build:css && node scripts/html-refs.js min",
     "build:js": "esbuild lightmodal.js --bundle=false --minify --legal-comments=none --outfile=lightmodal.min.js",
     "build:css": "esbuild lightmodal.css --bundle=false --minify --outfile=lightmodal.min.css",
     "preview": "vite preview"
