@@ -7,13 +7,17 @@
     "dev": "node scripts/html-refs.js dev && vite",
     "build": "npm run build:js && npm run build:css && node scripts/html-refs.js min",
     "build:js": "esbuild lightmodal.js --bundle=false --minify --legal-comments=none --outfile=lightmodal.min.js",
-    "build:css": "esbuild lightmodal.css --bundle=false --minify --outfile=lightmodal.min.css",
-    "preview": "vite preview"
+    "build:css": "esbuild lightmodal.css --bundle=false --minify --outfile=lightmodal.min.css"
   },
   "devDependencies": {
-    "esbuild": "^0.25.0",
-    "vite": "^6.0.0"
+    "esbuild": "^0.28.0",
+    "vite": "^8.0.10"
   },
-  "keywords": ["modal", "lightbox", "vanilla-js", "zero-dependency"],
+  "keywords": [
+    "modal",
+    "lightbox",
+    "vanilla-js",
+    "zero-dependency"
+  ],
   "license": "MIT"
 }
