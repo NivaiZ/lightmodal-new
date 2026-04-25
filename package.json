@@ -1,0 +1,19 @@
+{
+  "name": "lightmodal",
+  "version": "4.3.0",
+  "description": "Zero-dependency vanilla JS modal library",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "npm run build:js && npm run build:css",
+    "build:js": "esbuild lightmodal.js --bundle=false --minify --legal-comments=none --outfile=lightmodal.min.js",
+    "build:css": "esbuild lightmodal.css --bundle=false --minify --outfile=lightmodal.min.css",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0",
+    "vite": "^6.0.0"
+  },
+  "keywords": ["modal", "lightbox", "vanilla-js", "zero-dependency"],
+  "license": "MIT"
+}

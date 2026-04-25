@@ -49,6 +49,46 @@
 
 	const isTouchDevice = () => 'ontouchstart' in window || navigator.maxTouchPoints > 0;
 
+	// Cross-browser Fullscreen API (handles webkit/moz/ms prefixes, Safari, etc.)
+	const fsAPI = (() => {
+		const candidates = [
+			{ req: 'requestFullscreen',       exit: 'exitFullscreen',       elem: 'fullscreenElement',       enabled: 'fullscreenEnabled',       change: 'fullscreenchange',       error: 'fullscreenerror'       },
+			{ req: 'webkitRequestFullscreen',  exit: 'webkitExitFullscreen',  elem: 'webkitFullscreenElement',  enabled: 'webkitFullscreenEnabled',  change: 'webkitfullscreenchange',  error: 'webkitfullscreenerror'  },
+			{ req: 'mozRequestFullScreen',     exit: 'mozCancelFullScreen',   elem: 'mozFullScreenElement',     enabled: 'mozFullScreenEnabled',     change: 'mozfullscreenchange',     error: 'mozfullscreenerror'     },
+			{ req: 'msRequestFullscreen',      exit: 'msExitFullscreen',      elem: 'msFullscreenElement',      enabled: 'msFullscreenEnabled',      change: 'MSFullscreenChange',      error: 'MSFullscreenError'      },
+		];
+		const api = candidates.find(v => v.req in document.documentElement);
+		if (!api) return null;
+		return {
+			request: (el, opts) => {
+				const fn = el[api.req];
+				if (!fn) return Promise.reject(new Error('not supported'));
+				// webkit doesn't support the options argument
+				try { return fn.call(el, api.req.startsWith('webkit') ? undefined : opts) || Promise.resolve(); }
+				catch (e) { return Promise.reject(e); }
+			},
+			exit: () => {
+				const fn = document[api.exit];
+				if (!fn) return Promise.resolve();
+				try { return fn.call(document) || Promise.resolve(); }
+				catch (e) { return Promise.reject(e); }
+			},
+			get element() { return document[api.elem]; },
+			get enabled() { return !!document[api.enabled]; },
+			change: api.change,
+			error: api.error,
+		};
+	})();
+
+	const getScrollableParent = (node, boundary) => {
+		while (node && node !== boundary) {
+			const ov = window.getComputedStyle(node).overflowY;
+			if ((ov === 'auto' || ov === 'scroll') && node.scrollHeight > node.clientHeight + 1) return node;
+			node = node.parentElement;
+		}
+		return null;
+	};
+
 	const LOAD_TIMEOUT = 10_000;
 	const AJAX_TIMEOUT = 30_000;
 	const States = { Init: 0, Ready: 1, Closing: 2, Destroyed: 3 };
@@ -269,6 +309,7 @@
 		static instances = new Map();
 		static instanceCounter = 0;
 		static currentInstance = null;
+		static _globalPlugins = [];
 
 		static defaults = {
 			mainClass: '',
@@ -313,6 +354,52 @@
 			ajaxSelector: null,
 			ajaxSuccess: null,
 
+			// Bottom sheet
+			bottomSheet: false,
+
+			// Custom background (CSS color value)
+			customBackground: null,
+
+			// Auto-reset form on successful AJAX submit
+			formAutoReset: true,
+
+			// Keyboard mapping — key → action name
+			keyboard: {
+				Escape: 'close',
+				ArrowLeft: 'prev',
+				ArrowRight: 'next',
+				f: 'fullscreen',
+				'+': 'zoomIn',
+				'=': 'zoomIn',
+				'-': 'zoomOut',
+				'0': 'zoomReset',
+			},
+
+			// Plugin system
+			plugins: [],
+
+			// Toolbar
+			toolbar: false,
+			toolbarItems: ['prev', 'counter', 'next', 'zoom', 'fullscreen', 'close'],
+			fullscreenLabel: 'Fullscreen',
+			exitFullscreenLabel: 'Exit fullscreen',
+
+			// Fullscreen
+			fullscreen: false,
+
+			// Zoom for images (double-click, wheel, pinch)
+			zoom: false,
+			zoomMin: 1,
+			zoomMax: 4,
+			zoomStep: 0.5,
+
+			// AJAX
+			sanitize: true,        // true | false | (html) => DocumentFragment
+			ajaxTransform: null,   // (text, instance) => string | Element | null
+			ajaxError: null,       // (err, instance) => Element | string | null
+			ajaxTimeout: 30_000,
+			loadTimeout: 10_000,
+
 			on: {}
 		};
 
@@ -348,6 +435,16 @@
 			this._justDragged = false;
 			this._ajaxController = null;
 
+			this.toolbar = null;
+			this.toolbarCounter = null;
+			this._fullscreenBtn = null;
+			this._zoomBtn = null;
+			this._fullscreenHandler = null;
+			this._isFullscreen = false;
+			this._pluginCleanups = [];
+			this._zoomCleanup = null;
+			this._zoomActive = false;
+
 			this.events = new Map();
 			this.init();
 		}
@@ -359,6 +456,7 @@
 		init() {
 			LightModal.instances.set(this.id, this);
 			LightModal.currentInstance = this;
+			this._setupPlugins();
 			this.createDOM();
 			this.loadContent(this.items[this.currentIndex]);
 			this.open();
@@ -374,6 +472,7 @@
 			this.container.setAttribute('aria-modal', 'true');
 
 			if (this.isGallery) this.container.classList.add('is-gallery');
+			if (this.options.bottomSheet) this.container.classList.add('is-bottom-sheet');
 
 			const theme = this.options.theme;
 			this.container.setAttribute('data-theme',
@@ -387,25 +486,37 @@
 			// data-lenis-prevent разрешает нативный скролл внутри модалки при активном Lenis
 			this.contentWrapper.setAttribute('data-lenis-prevent', '');
 
-			if (isTouchDevice() && this.options.dragToClose) {
-				const drag = h('div', 'lm-drag-indicator');
-				this.contentWrapper.appendChild(drag);
-				this.container.classList.add('is-touch');
+			if (this.options.customBackground) {
+				this.contentWrapper.style.setProperty('--lm-bg', this.options.customBackground);
 			}
 
-			if (this.options.closeButton) {
-				this.closeBtn = this._createCloseButton();
-				this.contentWrapper.appendChild(this.closeBtn);
+			if ((isTouchDevice() || this.options.bottomSheet) && this.options.dragToClose) {
+				const drag = h('div', 'lm-drag-indicator');
+				this.contentWrapper.appendChild(drag);
+				if (isTouchDevice()) this.container.classList.add('is-touch');
+			}
+
+			if (this.options.toolbar) {
+				this._createToolbar();
+				this.contentWrapper.appendChild(this.toolbar);
+				this.container.classList.add('has-toolbar');
+			} else {
+				if (this.options.closeButton) {
+					this.closeBtn = this._createCloseButton();
+					this.contentWrapper.appendChild(this.closeBtn);
+				}
 			}
 
 			this.content = h('div', 'lm-content');
 			this.contentWrapper.appendChild(this.content);
 
-			if (this.isGallery && this.options.galleryNav) {
-				this.prevBtn = this._createNavButton('prev');
-				this.nextBtn = this._createNavButton('next');
-				this.container.appendChild(this.prevBtn);
-				this.container.appendChild(this.nextBtn);
+			if (!this.options.toolbar) {
+				if (this.isGallery && this.options.galleryNav) {
+					this.prevBtn = this._createNavButton('prev');
+					this.nextBtn = this._createNavButton('next');
+					this.container.appendChild(this.prevBtn);
+					this.container.appendChild(this.nextBtn);
+				}
 			}
 
 			this.container.appendChild(this.backdrop);
@@ -457,6 +568,81 @@
 			return btn;
 		}
 
+		_createToolbar() {
+			this.toolbar = h('div', 'lm-toolbar');
+
+			for (const item of this.options.toolbarItems) {
+				switch (item) {
+					case 'close':
+						if (this.options.closeButton) {
+							this.closeBtn = this._createCloseButton();
+							this.toolbar.appendChild(this.closeBtn);
+						}
+						break;
+					case 'prev':
+						if (this.isGallery && this.options.galleryNav) {
+							this.prevBtn = this._createNavButton('prev');
+							this.toolbar.appendChild(this.prevBtn);
+						}
+						break;
+					case 'counter':
+						if (this.isGallery) {
+							this.toolbarCounter = h('span', 'lm-toolbar-counter');
+							this.toolbarCounter.textContent = `${this.currentIndex + 1} / ${this.items.length}`;
+							this.toolbar.appendChild(this.toolbarCounter);
+						}
+						break;
+					case 'next':
+						if (this.isGallery && this.options.galleryNav) {
+							this.nextBtn = this._createNavButton('next');
+							this.toolbar.appendChild(this.nextBtn);
+						}
+						break;
+					case 'fullscreen':
+						if (this.options.fullscreen) {
+							this._fullscreenBtn = this._createFullscreenButton();
+							this.toolbar.appendChild(this._fullscreenBtn);
+						}
+						break;
+					case 'zoom':
+						if (this.options.zoom) {
+							this._zoomBtn = this._createZoomButton();
+							this._zoomBtn.style.display = 'none';
+							this.toolbar.appendChild(this._zoomBtn);
+						}
+						break;
+				}
+			}
+		}
+
+		_createFullscreenButton() {
+			const btn = h('button', 'lm-toolbar-btn lm-fullscreen-btn');
+			btn.type = 'button';
+			btn.setAttribute('aria-label', this.options.fullscreenLabel);
+			btn.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true">
+				<path class="lm-icon-expand" d="M8 3H5a2 2 0 00-2 2v3M21 8V5a2 2 0 00-2-2h-3M8 21H5a2 2 0 01-2-2v-3M16 21h3a2 2 0 002-2v-3"/>
+				<path class="lm-icon-shrink" style="display:none" d="M8 3v3a2 2 0 01-2 2H3M21 8h-3a2 2 0 01-2-2V3M8 21v-3a2 2 0 00-2-2H3M21 16h-3a2 2 0 00-2 2v3"/>
+			</svg>`;
+			btn.addEventListener('click', () => this._toggleFullscreen());
+			return btn;
+		}
+
+		_createZoomButton() {
+			const btn = h('button', 'lm-toolbar-btn lm-zoom-btn');
+			btn.type = 'button';
+			btn.setAttribute('aria-label', 'Zoom');
+			btn.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true">
+				<circle cx="11" cy="11" r="8"/>
+				<path class="lm-icon-zoom-in" d="M21 21l-4.35-4.35M11 8v6M8 11h6"/>
+				<path class="lm-icon-zoom-out" style="display:none" d="M21 21l-4.35-4.35M8 11h6"/>
+			</svg>`;
+			btn.addEventListener('click', () => {
+				if (this._zoomActive) this._zoomReset?.();
+				else this._zoomBy?.(this.options.zoomStep * 2);
+			});
+			return btn;
+		}
+
 		_updateNavButtons() {
 			if (!this.isGallery || !this.options.galleryNav) return;
 			if (this.options.loop) {
@@ -467,6 +653,9 @@
 				else this.prevBtn?.removeAttribute('disabled');
 				if (this.currentIndex === this.items.length - 1) this.nextBtn?.setAttribute('disabled', '');
 				else this.nextBtn?.removeAttribute('disabled');
+			}
+			if (this.toolbarCounter) {
+				this.toolbarCounter.textContent = `${this.currentIndex + 1} / ${this.items.length}`;
 			}
 		}
 
@@ -508,32 +697,72 @@
 
 			if (this.options.dragToClose) this.setupDragToClose();
 			if (this.options.idle) this.setupIdleMode();
+
+			if (this.options.fullscreen && fsAPI) {
+				this._fullscreenHandler = () => {
+					const isFs = !!fsAPI.element;
+					this._isFullscreen = isFs;
+					this.container.classList.toggle('is-fullscreen', isFs);
+					if (this._fullscreenBtn) {
+						this._fullscreenBtn.setAttribute('aria-label',
+							isFs ? this.options.exitFullscreenLabel : this.options.fullscreenLabel);
+						this._fullscreenBtn.querySelector('.lm-icon-expand')?.style.setProperty('display', isFs ? 'none' : '');
+						this._fullscreenBtn.querySelector('.lm-icon-shrink')?.style.setProperty('display', isFs ? '' : 'none');
+					}
+				};
+				document.addEventListener(fsAPI.change, this._fullscreenHandler);
+			}
 		}
 
 		handleKeydown(e) {
 			if (this.state !== States.Ready) return;
 			if (LightModal.currentInstance !== this) return;
 
-			if (e.key === 'Escape' && this.options.closeOnEsc) {
-				e.preventDefault();
-				this.close();
-				return;
-			}
+			const map = this.options.keyboard;
+			if (!map) return;
+			const action = map[e.key];
+			if (!action) return;
 
-			if (this.isGallery) {
-				if (e.key === 'ArrowLeft') {
+			switch (action) {
+				case 'close':
+					if (!this.options.closeOnEsc) return;
+					e.preventDefault();
+					this.close();
+					break;
+				case 'prev':
+					if (!this.isGallery) return;
 					e.preventDefault();
 					this.prev();
-				} else if (e.key === 'ArrowRight') {
+					break;
+				case 'next':
+					if (!this.isGallery) return;
 					e.preventDefault();
 					this.next();
-				}
+					break;
+				case 'fullscreen':
+					if (!this.options.fullscreen) return;
+					e.preventDefault();
+					this._toggleFullscreen();
+					break;
+				case 'zoomIn':
+					e.preventDefault();
+					this._zoomBy?.(this.options.zoomStep);
+					break;
+				case 'zoomOut':
+					e.preventDefault();
+					this._zoomBy?.(-this.options.zoomStep);
+					break;
+				case 'zoomReset':
+					e.preventDefault();
+					this._zoomReset?.();
+					break;
 			}
 		}
 
 		setupDragToClose() {
 			let startY = 0, currentY = 0, startX = 0, currentX = 0;
 			let isDragging = false, dragAxis = null, isMouseDown = false;
+			let scrollableAncestor = null;
 
 			const coords = (e) => {
 				if (e.touches?.[0]) return { x: e.touches[0].clientX, y: e.touches[0].clientY };
@@ -548,6 +777,10 @@
 				startY = currentY = c.y;
 				isDragging = false;
 				dragAxis = null;
+				scrollableAncestor = null;
+				if (e.type === 'touchstart') {
+					scrollableAncestor = getScrollableParent(e.target, this.contentWrapper);
+				}
 				if (e.type === 'mousedown') {
 					e.preventDefault();
 					isMouseDown = true;
@@ -564,6 +797,13 @@
 				const dx = currentX - startX, dy = currentY - startY;
 
 				if (!isDragging && (Math.abs(dx) > 10 || Math.abs(dy) > 10)) {
+					// Мобилка: уступаем нативному скроллу если внутри скроллируемого элемента
+					if (scrollableAncestor && Math.abs(dy) >= Math.abs(dx)) {
+						const atTop = scrollableAncestor.scrollTop <= 1;
+						const atBottom = scrollableAncestor.scrollTop + scrollableAncestor.clientHeight >= scrollableAncestor.scrollHeight - 1;
+						if (dy > 0 && !atTop) return;
+						if (dy < 0 && !atBottom) return;
+					}
 					isDragging = true;
 					dragAxis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
 					this.contentWrapper.classList.add('is-dragging');
@@ -575,10 +815,14 @@
 
 				if (!isDragging) return;
 
+				// Блокируем нативный скролл страницы пока drag-to-close активен
+				if (dragAxis === 'y' && e.cancelable) e.preventDefault();
+
 				if (dragAxis === 'y') {
-					// Вертикаль — drag-to-close
-					const p = Math.min(Math.abs(dy) / 200, 1);
-					this.contentWrapper.style.transform = `translateY(${dy}px)`;
+					// Для bottom sheet — сопротивление при свайпе вверх
+					const effectiveDy = this.options.bottomSheet ? Math.max(-24, dy) : dy;
+					const p = Math.min(Math.abs(effectiveDy) / 200, 1);
+					this.contentWrapper.style.transform = `translateY(${effectiveDy}px)`;
 					this.contentWrapper.style.opacity = 1 - p * 0.3;
 					this.backdrop.style.opacity = 1 - p * 0.5;
 				} else if (dragAxis === 'x' && this.isGallery && this.options.gallerySwipe) {
@@ -611,7 +855,8 @@
 				const dy = currentY - startY;
 				this.contentWrapper.classList.remove('is-dragging', 'is-draggable');
 
-				const closeVertical = dragAxis === 'y' && dy > 100;
+				const closeThreshold = this.options.bottomSheet ? 150 : 100;
+				const closeVertical = dragAxis === 'y' && dy > closeThreshold;
 				const swipeHorizontal = dragAxis === 'x'
 					&& this.isGallery
 					&& this.options.gallerySwipe
@@ -630,13 +875,18 @@
 					if (dx > 0) this.prev();
 					else this.next();
 				} else {
-					this.contentWrapper.style.transition = 'all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94)';
+					// Spring snap back — для bottom sheet используем spring cubic-bezier
+					const easing = this.options.bottomSheet
+						? 'cubic-bezier(0.34, 1.56, 0.64, 1)'
+						: 'cubic-bezier(0.25, 0.46, 0.45, 0.94)';
+					const dur = this.options.bottomSheet ? '0.5s' : '0.3s';
+					this.contentWrapper.style.transition = `all ${dur} ${easing}`;
 					this.contentWrapper.style.transform = '';
 					this.contentWrapper.style.opacity = '';
 					this.backdrop.style.opacity = '';
 					setTimeout(() => {
 						if (this.contentWrapper) this.contentWrapper.style.transition = '';
-					}, 300);
+					}, this.options.bottomSheet ? 500 : 300);
 				}
 
 				startX = startY = currentX = currentY = 0;
@@ -694,9 +944,10 @@
 			}
 			this._ajaxController = new AbortController();
 
+			const timeout = item.ajaxTimeout ?? this.options.ajaxTimeout ?? AJAX_TIMEOUT;
 			const timeoutId = setTimeout(() => {
 				try { this._ajaxController.abort(); } catch (_) { /* noop */ }
-			}, AJAX_TIMEOUT);
+			}, timeout);
 
 			const fetchOpts = {
 				...(this.options.fetchOptions || {}),
@@ -720,7 +971,7 @@
 						if (result instanceof Element) return result;
 						if (typeof result === 'string') {
 							const wrap = h('div', 'lm-ajax-content');
-							wrap.appendChild(sanitizeAjaxHtml(result));
+							wrap.appendChild(this._sanitize(result));
 							return wrap;
 						}
 					}
@@ -729,13 +980,22 @@
 					return pre;
 				}
 
-				const text = await res.text();
+				let text = await res.text();
+
+				// ajaxTransform — нормализация HTML до вставки
+				const transform = item.ajaxTransform ?? this.options.ajaxTransform;
+				if (transform) {
+					const r = transform(text, this);
+					if (r instanceof Element || r instanceof DocumentFragment) return r;
+					if (typeof r === 'string') text = r;
+				}
+
 				const selector = item.ajaxSelector || this.options.ajaxSelector;
-				const frag = sanitizeAjaxHtml(text);
+				const frag = this._sanitize(text);
 
 				if (selector) {
 					const found = frag.querySelector(selector);
-					if (!found) throw new Error(`Селектор "${selector}" не найден в ответе`);
+					if (!found) throw new Error(`Selector "${selector}" not found`);
 					return found;
 				}
 				const wrap = h('div', 'lm-ajax-content');
@@ -745,6 +1005,18 @@
 			} catch (err) {
 				clearTimeout(timeoutId);
 				if (err.name === 'AbortError') return null;
+
+				// ajaxError — кастомный обработчик ошибок
+				const errHandler = item.ajaxError ?? this.options.ajaxError;
+				if (errHandler) {
+					const r = errHandler(err, this);
+					if (r instanceof Element) return r;
+					if (typeof r === 'string') {
+						const wrap = h('div', 'lm-ajax-content');
+						wrap.textContent = r;
+						return wrap;
+					}
+				}
 				throw err;
 			}
 		}
@@ -912,9 +1184,14 @@
 			}
 
 			if (this.isGallery) {
-				const counter = h('div', 'lm-counter');
-				counter.textContent = `${this.currentIndex + 1} / ${this.items.length}`;
-				this.container.appendChild(counter);
+				if (this.toolbarCounter) {
+					this.toolbarCounter.textContent = `${this.currentIndex + 1} / ${this.items.length}`;
+				} else {
+					this.container.querySelector('.lm-counter')?.remove();
+					const counter = h('div', 'lm-counter');
+					counter.textContent = `${this.currentIndex + 1} / ${this.items.length}`;
+					this.container.appendChild(counter);
+				}
 			}
 
 			if (this.removeFocusTrap) {
@@ -926,7 +1203,246 @@
 			}
 
 			this._updateNavButtons();
+
+			// Zoom setup for images
+			if (this._zoomCleanup) {
+				this._zoomCleanup();
+				this._zoomCleanup = null;
+				this._zoomActive = false;
+				this.content.classList.remove('is-zoomed', 'is-zoom-dragging');
+			}
+			const isImage = element instanceof HTMLImageElement;
+			if (this.options.zoom && isImage) {
+				this._zoomCleanup = this._setupZoom(element);
+				if (this._zoomBtn) this._zoomBtn.style.display = '';
+			} else if (this._zoomBtn) {
+				this._zoomBtn.style.display = 'none';
+			}
+
 			this.emit('contentReady', item);
+			if (this.options.formAutoReset) this._bindForms();
+		}
+
+		_bindForms() {
+			this.content.querySelectorAll('form').forEach(form => {
+				if (form._lmBound) return;
+				form._lmBound = true;
+				form.addEventListener('submit', (e) => {
+					e.preventDefault();
+					this._submitForm(form);
+				});
+			});
+		}
+
+		async _submitForm(form) {
+			const action = form.action || window.location.href;
+			const method = (form.method || 'GET').toUpperCase();
+			try {
+				const formData = new FormData(form);
+				const url = method === 'GET' ? `${action}?${new URLSearchParams(formData)}` : action;
+				const init = { method };
+				if (method !== 'GET') init.body = formData;
+				const res = await fetch(url, init);
+				const contentType = res.headers.get('content-type') || '';
+				let success = res.ok;
+				if (success && contentType.includes('application/json')) {
+					const data = await res.json();
+					success = this._isSuccessData(data);
+				}
+				// Для HTML-ответов доверяем HTTP-статусу (res.ok)
+				if (success) form.reset();
+			} catch (_) { /* noop */ }
+		}
+
+		_isSuccessData(data) {
+			if (typeof data === 'string') return this._isSuccessText(data);
+			return data.status === true || data.status === 'success' || data.status === 'ok'
+				|| data.ok === true || data.success === true;
+		}
+
+		_isSuccessText(text) {
+			const t = text.trim().toLowerCase();
+			return t === 'ok' || t === '1' || t === 'true';
+		}
+
+		_setupZoom(img) {
+			let scale = 1, panX = 0, panY = 0;
+			let isPanning = false, startPX = 0, startPY = 0;
+			let isMouseDown = false;
+			const MIN = this.options.zoomMin, MAX = this.options.zoomMax;
+			const cw = this.content;
+
+			img.classList.add('lm-zoomable');
+
+			const clampPan = () => {
+				const ww = cw.clientWidth, wh = cw.clientHeight;
+				const maxX = Math.max(0, (img.naturalWidth * scale - ww) / (2 * scale));
+				const maxY = Math.max(0, (img.naturalHeight * scale - wh) / (2 * scale));
+				panX = Math.max(-maxX, Math.min(maxX, panX));
+				panY = Math.max(-maxY, Math.min(maxY, panY));
+			};
+
+			const applyTransform = (animated) => {
+				img.style.transition = animated ? 'transform 0.25s ease' : 'none';
+				img.style.transform = `scale(${scale}) translate(${panX}px, ${panY}px)`;
+				this._zoomActive = scale > MIN;
+				cw.classList.toggle('is-zoomed', this._zoomActive);
+				if (this._zoomBtn) {
+					this._zoomBtn.querySelector('.lm-icon-zoom-in')?.style.setProperty('display', this._zoomActive ? 'none' : '');
+					this._zoomBtn.querySelector('.lm-icon-zoom-out')?.style.setProperty('display', this._zoomActive ? '' : 'none');
+				}
+			};
+
+			const zoomTo = (newScale, pivotX, pivotY) => {
+				const prev = scale;
+				scale = Math.max(MIN, Math.min(MAX, newScale));
+				if (pivotX !== undefined) {
+					const rect = img.getBoundingClientRect();
+					const rx = (pivotX - (rect.left + rect.width / 2)) / prev;
+					const ry = (pivotY - (rect.top + rect.height / 2)) / prev;
+					panX -= rx * (scale - prev) / scale;
+					panY -= ry * (scale - prev) / scale;
+				}
+				clampPan();
+				applyTransform(true);
+			};
+
+			// Double-click
+			const onDblClick = (e) => {
+				e.stopPropagation();
+				if (scale > MIN) { scale = MIN; panX = 0; panY = 0; applyTransform(true); }
+				else zoomTo(MIN + this.options.zoomStep * 2, e.clientX, e.clientY);
+			};
+
+			// Wheel
+			const onWheel = (e) => {
+				e.preventDefault();
+				zoomTo(scale + (e.deltaY < 0 ? this.options.zoomStep : -this.options.zoomStep), e.clientX, e.clientY);
+			};
+
+			// Mouse drag pan
+			const onMouseDown = (e) => {
+				if (!this._zoomActive) return;
+				isMouseDown = isPanning = true;
+				startPX = e.clientX - panX * scale;
+				startPY = e.clientY - panY * scale;
+				img.style.transition = 'none';
+				cw.classList.add('is-zoom-dragging');
+				e.stopPropagation();
+				e.preventDefault();
+			};
+			const onMouseMove = (e) => {
+				if (!isMouseDown) return;
+				panX = (e.clientX - startPX) / scale;
+				panY = (e.clientY - startPY) / scale;
+				clampPan();
+				applyTransform(false);
+			};
+			const onMouseUp = () => {
+				if (!isMouseDown) return;
+				isMouseDown = isPanning = false;
+				cw.classList.remove('is-zoom-dragging');
+			};
+
+			// Pinch
+			let pinchDist = 0, pinchActive = false;
+			const onTouchStart = (e) => {
+				if (e.touches.length === 2) {
+					pinchActive = true;
+					pinchDist = Math.hypot(
+						e.touches[0].clientX - e.touches[1].clientX,
+						e.touches[0].clientY - e.touches[1].clientY
+					);
+					e.preventDefault();
+				}
+			};
+			const onTouchMove = (e) => {
+				if (!pinchActive || e.touches.length !== 2) return;
+				const dist = Math.hypot(
+					e.touches[0].clientX - e.touches[1].clientX,
+					e.touches[0].clientY - e.touches[1].clientY
+				);
+				const pivot = {
+					x: (e.touches[0].clientX + e.touches[1].clientX) / 2,
+					y: (e.touches[0].clientY + e.touches[1].clientY) / 2,
+				};
+				zoomTo(scale * (dist / pinchDist), pivot.x, pivot.y);
+				pinchDist = dist;
+				e.preventDefault();
+			};
+			const onTouchEnd = () => { pinchActive = false; };
+
+			cw.addEventListener('dblclick', onDblClick);
+			cw.addEventListener('wheel', onWheel, { passive: false });
+			cw.addEventListener('mousedown', onMouseDown);
+			document.addEventListener('mousemove', onMouseMove);
+			document.addEventListener('mouseup', onMouseUp);
+			cw.addEventListener('touchstart', onTouchStart, { passive: false });
+			cw.addEventListener('touchmove', onTouchMove, { passive: false });
+			cw.addEventListener('touchend', onTouchEnd, { passive: true });
+
+			this._zoomBy = (delta) => zoomTo(scale + delta);
+			this._zoomReset = () => { scale = MIN; panX = 0; panY = 0; applyTransform(true); };
+
+			return () => {
+				img.classList.remove('lm-zoomable');
+				img.style.transform = '';
+				cw.removeEventListener('dblclick', onDblClick);
+				cw.removeEventListener('wheel', onWheel);
+				cw.removeEventListener('mousedown', onMouseDown);
+				document.removeEventListener('mousemove', onMouseMove);
+				document.removeEventListener('mouseup', onMouseUp);
+				cw.removeEventListener('touchstart', onTouchStart);
+				cw.removeEventListener('touchmove', onTouchMove);
+				cw.removeEventListener('touchend', onTouchEnd);
+				delete this._zoomBy;
+				delete this._zoomReset;
+			};
+		}
+
+		_toggleFullscreen() {
+			if (!fsAPI) return;
+			if (this._isFullscreen || fsAPI.element) {
+				fsAPI.exit().catch(() => {});
+			} else {
+				// <dialog> is in the browser top layer, so requestFullscreen on it fails.
+				// contentWrapper is a plain <div> child of the dialog — fullscreen works on it.
+				// For div-based containers (no dialog) we target the container directly.
+				const target = this.useDialog ? this.contentWrapper : this.container;
+				fsAPI.request(target, { navigationUI: 'hide' }).catch(() => {});
+			}
+		}
+
+		_sanitize(html) {
+			const s = this.options.sanitize;
+			if (s === false) {
+				const d = document.createElement('div');
+				d.innerHTML = html;
+				return d;
+			}
+			if (typeof s === 'function') {
+				const r = s(html);
+				if (r instanceof DocumentFragment || r instanceof Element) return r;
+				const d = document.createElement('div');
+				d.innerHTML = String(r);
+				return d;
+			}
+			return sanitizeAjaxHtml(html);
+		}
+
+		_setupPlugins() {
+			const plugins = [...LightModal._globalPlugins, ...(this.options.plugins || [])];
+			for (const plugin of plugins) {
+				if (plugin.defaults) {
+					for (const [k, v] of Object.entries(plugin.defaults)) {
+						if (this.options[k] === LightModal.defaults[k]) this.options[k] = v;
+					}
+				}
+				if (typeof plugin.setup === 'function') {
+					const cleanup = plugin.setup(this);
+					if (typeof cleanup === 'function') this._pluginCleanups.push(cleanup);
+				}
+			}
 		}
 
 		showLoader() {
@@ -1004,6 +1520,23 @@
 
 		destroy() {
 			if (this.state === States.Destroyed) return;
+
+			// Plugin cleanup
+			for (const fn of this._pluginCleanups) try { fn(); } catch (_) {}
+			this._pluginCleanups = [];
+
+			// Zoom cleanup
+			if (this._zoomCleanup) { this._zoomCleanup(); this._zoomCleanup = null; }
+
+			// Fullscreen cleanup
+			if (this._fullscreenHandler && fsAPI) {
+				document.removeEventListener(fsAPI.change, this._fullscreenHandler);
+				this._fullscreenHandler = null;
+			}
+			if (this._isFullscreen && fsAPI?.element) {
+				fsAPI.exit().catch(() => {});
+				this._isFullscreen = false;
+			}
 
 			this.stopMedia();
 
@@ -1158,6 +1691,13 @@
 			return id ? LightModal.instances.get(id) : LightModal.currentInstance;
 		}
 
+		static use(plugin) {
+			if (!LightModal._globalPlugins.includes(plugin)) {
+				LightModal._globalPlugins.push(plugin);
+			}
+			return LightModal;
+		}
+
 		static refreshLenis() {
 			lenisAdapter.invalidate();
 		}
@@ -1203,6 +1743,9 @@
 						options[optKey.charAt(0).toLowerCase() + optKey.slice(1)] = val;
 					}
 				}
+
+				if (trigger.dataset.springBottomSheet === 'true') options.bottomSheet = true;
+				if (trigger.dataset.customBackground) options.customBackground = trigger.dataset.customBackground;
 
 				LightModal.open(items, options);
 			});

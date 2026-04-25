@@ -585,6 +585,263 @@ dialog.lm-container.is-closing .lm-content-wrapper {
 	}
 }
 
+/* ---------- Bottom sheet ---------- */
+.lm-container.is-bottom-sheet,
+dialog.lm-container.is-bottom-sheet {
+	align-items: flex-end;
+	padding: 0;
+}
+
+@media (max-width: 767px) {
+	.lm-container.is-bottom-sheet {
+		padding: 0;
+	}
+
+	.lm-container.is-bottom-sheet .lm-content-wrapper {
+		margin: 0;
+	}
+}
+
+.lm-container.is-bottom-sheet .lm-content-wrapper,
+dialog.lm-container.is-bottom-sheet .lm-content-wrapper {
+	max-width: 100%;
+	width: 100%;
+	max-height: min(75dvh, 75vh);
+	border-radius: 20px 20px 0 0;
+	box-shadow: 0 -8px 40px rgba(0, 0, 0, 0.16);
+	padding-top: 20px;
+	transform: translateY(105%);
+	opacity: 1;
+	transition: transform 0.42s cubic-bezier(0.32, 0.72, 0, 1),
+		opacity var(--lm-duration) var(--lm-ease-in-out);
+}
+
+/* Закрытие через drag — кнопка X не нужна */
+.lm-container.is-bottom-sheet .lm-close-btn {
+	display: none;
+}
+
+.lm-container.is-bottom-sheet.is-open .lm-content-wrapper,
+dialog.lm-container.is-bottom-sheet.is-open .lm-content-wrapper {
+	transform: translateY(0);
+	opacity: 1;
+}
+
+.lm-container.is-bottom-sheet.is-closing .lm-content-wrapper,
+dialog.lm-container.is-bottom-sheet.is-closing .lm-content-wrapper {
+	transform: translateY(110%);
+	opacity: 1;
+	transition: transform 0.35s cubic-bezier(0.36, 0.66, 0.04, 1);
+}
+
+.lm-container.is-bottom-sheet.is-loading .lm-content-wrapper {
+	min-width: 0;
+	min-height: 200px;
+}
+
+/* Bottom sheet backdrop — тёмный, без blur, страница видна насквозь */
+.lm-container.is-bottom-sheet .lm-backdrop,
+dialog.lm-container.is-bottom-sheet .lm-backdrop {
+	background: rgba(0, 0, 0, 0.5);
+	backdrop-filter: none;
+	-webkit-backdrop-filter: none;
+}
+
+/* Drag handle всегда видна у bottom sheet */
+.lm-container.is-bottom-sheet .lm-drag-indicator {
+	opacity: 1;
+	width: 36px;
+	background: rgba(0, 0, 0, 0.22);
+}
+
+.lm-container[data-theme='dark'].is-bottom-sheet .lm-drag-indicator {
+	background: rgba(255, 255, 255, 0.35);
+}
+
+/* Контент внутри bottom sheet скроллируется */
+.lm-container.is-bottom-sheet .lm-content.has-inline-content {
+	max-height: none;
+}
+
+/* ---------- Toolbar ---------- */
+.lm-toolbar {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	flex-shrink: 0;
+	gap: 4px;
+	padding: 6px 10px;
+	background: rgba(0, 0, 0, 0.72);
+	backdrop-filter: blur(12px);
+	-webkit-backdrop-filter: blur(12px);
+	z-index: 10;
+	min-height: 48px;
+}
+
+.lm-toolbar-btn {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 36px;
+	height: 36px;
+	padding: 0;
+	border: 0;
+	border-radius: 8px;
+	background: transparent;
+	color: rgba(255, 255, 255, 0.85);
+	cursor: pointer;
+	transition: background-color 0.15s ease, color 0.15s ease;
+	flex-shrink: 0;
+}
+
+.lm-toolbar-btn:hover {
+	background: rgba(255, 255, 255, 0.15);
+	color: #fff;
+}
+
+.lm-toolbar-btn:disabled {
+	opacity: 0.3;
+	cursor: default;
+}
+
+.lm-toolbar-btn svg {
+	width: 20px;
+	height: 20px;
+	stroke: currentColor;
+	stroke-width: 2;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+	fill: none;
+	display: block;
+}
+
+.lm-toolbar-counter {
+	font-size: 13px;
+	font-variant-numeric: tabular-nums;
+	color: rgba(255, 255, 255, 0.7);
+	padding: 0 8px;
+	flex-shrink: 0;
+}
+
+/* When toolbar is present, hide floating nav/counter/close */
+.lm-container.has-toolbar .lm-nav-btn,
+.lm-container.has-toolbar .lm-counter,
+.lm-container.has-toolbar > .lm-close-btn,
+.lm-container.has-toolbar .lm-content-wrapper > .lm-close-btn {
+	display: none;
+}
+
+/* Nav buttons inside toolbar reset to flex-item */
+.lm-toolbar .lm-nav-btn {
+	position: static;
+	transform: none;
+	box-shadow: none;
+	background: transparent;
+	color: rgba(255, 255, 255, 0.85);
+	width: 36px;
+	height: 36px;
+	border-radius: 8px;
+}
+
+.lm-toolbar .lm-nav-btn:hover {
+	background: rgba(255, 255, 255, 0.15);
+	color: #fff;
+}
+
+/* Close button inside toolbar reset to flex-item */
+.lm-toolbar .lm-close-btn {
+	position: static;
+	background: transparent;
+	color: rgba(255, 255, 255, 0.85);
+	width: 36px;
+	height: 36px;
+	border-radius: 8px;
+	box-shadow: none;
+}
+
+.lm-toolbar .lm-close-btn:hover {
+	background: rgba(255, 255, 255, 0.15);
+	color: #fff;
+}
+
+/* ---------- Zoom ---------- */
+.lm-content img.lm-zoomable {
+	cursor: zoom-in;
+	transform-origin: center center;
+	will-change: transform;
+}
+
+.lm-content.is-zoomed img.lm-zoomable {
+	cursor: grab;
+}
+
+.lm-content.is-zoom-dragging img.lm-zoomable {
+	cursor: grabbing !important;
+}
+
+/* ---------- Fullscreen ---------- */
+
+/* When contentWrapper is the native fullscreen element */
+.lm-content-wrapper:fullscreen,
+.lm-content-wrapper:-webkit-full-screen,
+.lm-content-wrapper:-moz-full-screen,
+.lm-content-wrapper:-ms-fullscreen {
+	max-width: 100vw;
+	max-height: 100vh;
+	width: 100vw;
+	height: 100vh;
+	border-radius: 0;
+	border: 0;
+	box-shadow: none;
+	background: #000;
+}
+
+/* Backdrop behind the fullscreen contentWrapper */
+.lm-content-wrapper:fullscreen::backdrop,
+.lm-content-wrapper:-webkit-full-screen::backdrop {
+	background: #000;
+}
+
+/* Fallback: is-fullscreen class on container (div-based modals) */
+.lm-container.is-fullscreen .lm-content-wrapper {
+	max-width: 100vw;
+	max-height: 100vh;
+	width: 100vw;
+	height: 100vh;
+	border-radius: 0;
+	border: 0;
+	box-shadow: none;
+}
+
+/* Idle hide toolbar — show on hover/touch */
+.lm-container.is-idle .lm-toolbar {
+	opacity: 0;
+	pointer-events: none;
+	transition: opacity 0.3s ease;
+}
+
+.lm-container.is-idle:hover .lm-toolbar {
+	opacity: 1;
+	pointer-events: auto;
+}
+
+@media (max-width: 767px) {
+	.lm-toolbar {
+		min-height: 44px;
+		padding: 4px 6px;
+	}
+
+	.lm-toolbar-btn {
+		width: 32px;
+		height: 32px;
+	}
+
+	.lm-toolbar-btn svg {
+		width: 18px;
+		height: 18px;
+	}
+}
+
 @media print {
 	.lm-container,
 	dialog.lm-container {

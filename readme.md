@@ -27,6 +27,11 @@
 - 🌐 **Dialog API** — нативный `<dialog>` где поддерживается, `<div>` как fallback
 - 📡 **DOM-события** — `lightmodal:open` / `lightmodal:close` для интеграции с внешними модулями
 
+## 🛠️ Разработка
+
+> **Правки вносить только в `lightmodal.js` и `lightmodal.css`.**
+> Файлы `lightmodal.min.js` и `lightmodal.min.css` — минифицированные версии, обновляются вручную и в редактировании не нуждаются.
+
 ## 📦 Установка
 
 ### Прямое подключение
@@ -134,6 +139,8 @@ const modal = await LightModal.open('video.mp4', { theme: 'dark' });
 | `data-lm-gallery-swipe` | Свайп влево/вправо в галерее | `true` |
 | `data-lm-ajax-selector` | CSS-селектор для извлечения части HTML-ответа (AJAX) | `null` |
 | `data-lm-idle` | Время до idle-режима (мс) | `3000` |
+| `data-spring-bottom-sheet` | Открыть как bottom sheet снизу экрана со spring-анимацией | `false` |
+| `data-custom-background` | CSS-цвет фона окна (`#fff`, `rgba(...)`, etc.) | — |
 
 > Примечание: все `data-lm-*` автоматически мапятся в опции. Например, `data-lm-close-on-backdrop` → `closeOnBackdrop`.
 
@@ -178,6 +185,15 @@ LightModal.open('content', {
   closeBtnTpl: '<button class="lm-close-btn" type="button" aria-label="Close">…</button>',
   prevBtnTpl: '<button class="lm-nav-btn lm-nav-prev" type="button" aria-label="Prev">…</button>',
   nextBtnTpl: '<button class="lm-nav-btn lm-nav-next" type="button" aria-label="Next">…</button>',
+
+  // Bottom sheet
+  bottomSheet: false,      // открыть как нижний лист (аналог data-spring-bottom-sheet)
+
+  // Кастомный фон
+  customBackground: null,  // CSS-цвет, напр. '#1a1a2e' или 'rgba(0,0,0,0.8)'
+
+  // Форма: авто-сброс при успешной AJAX-отправке
+  formAutoReset: true,     // false — отключить
 
   // Callbacks (см. раздел «События»)
   on: {}
