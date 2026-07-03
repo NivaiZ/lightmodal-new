@@ -49,6 +49,20 @@
 
 	const isTouchDevice = () => 'ontouchstart' in window || navigator.maxTouchPoints > 0;
 
+	// Toolbar icons — centered in 24×24 viewBox
+	const TOOLBAR_ICONS = {
+		zoomIn: `<circle cx="12" cy="12" r="5"/><path d="M12 9v6M9 12h6"/><path d="m16.5 16.5 3.5 3.5"/>`,
+		zoomOut: `<circle cx="12" cy="12" r="5"/><path d="M9 12h6"/><path d="m16.5 16.5 3.5 3.5"/>`,
+		toggle1to1: `<rect x="8" y="8" width="8" height="8" rx="1"/><path d="M10.5 12h3"/>`,
+		rotateCCW: `<path d="M6 12a6 6 0 1 0 1.8-4.2"/><path d="M6 6v3h3"/>`,
+		rotateCW: `<path d="M18 12a6 6 0 1 1-1.8-4.2"/><path d="M18 6v3h-3"/>`,
+		flipX: `<path d="M12 7v10"/><path d="m9.5 10 2.5-2.5 2.5 2.5"/><path d="m9.5 14 2.5 2.5 2.5-2.5"/>`,
+		flipY: `<path d="M7 12h10"/><path d="m10 9.5-2.5 2.5 2.5 2.5"/><path d="m14 9.5 2.5 2.5-2.5 2.5"/>`,
+		reset: `<path d="M6 12a6 6 0 1 0 6-6"/><path d="M6 6v3h3"/>`,
+		fullscreen: `<path d="M9 4H4v5M15 4h5v5M9 20H4v-5M15 20h5v-5"/>`,
+		fullscreenExit: `<path d="M10 4H4v6M14 4h6v6M10 20H4v-6M14 20h6v-6"/>`,
+	};
+
 	// Cross-browser Fullscreen API (handles webkit/moz/ms prefixes, Safari, etc.)
 	const fsAPI = (() => {
 		const candidates = [
@@ -86,6 +100,41 @@
 			if ((ov === 'auto' || ov === 'scroll') && node.scrollHeight > node.clientHeight + 1) return node;
 			node = node.parentElement;
 		}
+		return null;
+	};
+
+	/** Клон содержимого <template> (importNode — корректный контекст документа, MDN). */
+	const cloneTemplateContent = (tpl) => {
+		const frag = document.importNode(tpl.content, true);
+		const elements = [...frag.children];
+		if (elements.length === 1) return elements[0];
+		const wrap = document.createElement('div');
+		wrap.className = 'inline-content';
+		wrap.appendChild(frag);
+		return wrap;
+	};
+
+	/**
+	 * Разрешает inline-источник #id:
+	 * 1) живой DOM-узел — перенос (move) в модалку и возврат при закрытии;
+	 * 2) <template id="…"> — клон при каждом открытии;
+	 * 3) #id внутри любого template.content — клон узла.
+	 */
+	const resolveInlineSource = (src) => {
+		const id = src.startsWith('#') ? src.slice(1) : src;
+		if (!id) return null;
+
+		const node = document.getElementById(id);
+		if (node instanceof HTMLTemplateElement) {
+			return { el: cloneTemplateContent(node), cloned: true };
+		}
+		if (node) return { el: node, cloned: false };
+
+		for (const tpl of document.querySelectorAll('template')) {
+			const inner = tpl.content.querySelector(`#${CSS.escape(id)}`);
+			if (inner) return { el: document.importNode(inner, true), cloned: true };
+		}
+
 		return null;
 	};
 
@@ -241,7 +290,7 @@
 			const origMargin = parseFloat(window.getComputedStyle(body).marginRight) || 0;
 			html.style.setProperty('--lm-body-margin', `${origMargin}px`);
 
-			// Fancybox-like: don't fix the body; lock scroll via overflow + scrollbar compensation.
+			// Lock scroll via overflow + scrollbar compensation (body stays in flow).
 			body.classList.add('lm-scroll-locked-body');
 		},
 
@@ -316,6 +365,8 @@
 			theme: 'dark',
 
 			closeButton: true,
+			// static | absolute | fixed | null (auto: static — inline, absolute — media/галерея)
+			closePosition: null,
 			closeOnBackdrop: true,
 			closeOnEsc: true,
 			closeExisting: false,
@@ -356,6 +407,8 @@
 
 			// Bottom sheet
 			bottomSheet: false,
+			// Teleport tap-bar into sheet: true | CSS selector
+			tapBarMove: false,
 
 			// Custom background (CSS color value)
 			customBackground: null,
@@ -378,11 +431,21 @@
 			// Plugin system
 			plugins: [],
 
-			// Toolbar
+			// Toolbar: floating dock, groups start | tools | actions
 			toolbar: false,
-			toolbarItems: ['prev', 'counter', 'next', 'zoom', 'fullscreen', 'close'],
+			toolbarAbsolute: true,
+			toolbarDisplay: null, // null = auto; or { left, middle, right }
+			toolbarItems: null, // legacy flat list → middle column
 			fullscreenLabel: 'Fullscreen',
 			exitFullscreenLabel: 'Exit fullscreen',
+			zoomInLabel: 'Zoom in',
+			zoomOutLabel: 'Zoom out',
+			toggle1to1Label: 'Toggle zoom level',
+			rotateCCWLabel: 'Rotate counterclockwise',
+			rotateCWLabel: 'Rotate clockwise',
+			flipXLabel: 'Flip horizontally',
+			flipYLabel: 'Flip vertically',
+			resetLabel: 'Reset view',
 
 			// Fullscreen
 			fullscreen: false,
@@ -421,6 +484,7 @@
 			this.closeBtn = null;
 			this.prevBtn = null;
 			this.nextBtn = null;
+			this.navGroup = null;
 			this.useDialog = false;
 
 			this.isIdle = false;
@@ -428,6 +492,10 @@
 			this.previousFocus = null;
 			this.removeFocusTrap = null;
 			this.movedElement = null;
+			this._tapBarEl = null;
+			this._tapBarParent = null;
+			this._tapBarNext = null;
+			this._tapBarClickHandler = null;
 
 			this._prevSrcAdd = null;
 			this._loadToken = null;
@@ -437,8 +505,10 @@
 
 			this.toolbar = null;
 			this.toolbarCounter = null;
+			this.toolbarCounterCurrent = null;
+			this.toolbarCounterTotal = null;
+			this._toolbarZoomBtns = null;
 			this._fullscreenBtn = null;
-			this._zoomBtn = null;
 			this._fullscreenHandler = null;
 			this._isFullscreen = false;
 			this._pluginCleanups = [];
@@ -472,7 +542,10 @@
 			this.container.setAttribute('aria-modal', 'true');
 
 			if (this.isGallery) this.container.classList.add('is-gallery');
-			if (this.options.bottomSheet) this.container.classList.add('is-bottom-sheet');
+			if (this.options.bottomSheet) {
+				this.container.classList.add('is-bottom-sheet');
+				if (this.options.tapBarMove) this.container.classList.add('has-tap-bar-move');
+			}
 
 			const theme = this.options.theme;
 			this.container.setAttribute('data-theme',
@@ -490,28 +563,52 @@
 				this.contentWrapper.style.setProperty('--lm-bg', this.options.customBackground);
 			}
 
-			if ((isTouchDevice() || this.options.bottomSheet) && this.options.dragToClose) {
+			if (this.options.bottomSheet) {
+				const drag = h('div', 'lm-drag-indicator');
+				drag.setAttribute('aria-hidden', 'true');
+				this.contentWrapper.appendChild(drag);
+				this.contentWrapper.classList.add('has-drag-handle');
+			} else if (isTouchDevice() && this.options.dragToClose) {
 				const drag = h('div', 'lm-drag-indicator');
 				this.contentWrapper.appendChild(drag);
-				if (isTouchDevice()) this.container.classList.add('is-touch');
+			}
+
+			if (isTouchDevice() && this.options.dragToClose) {
+				this.container.classList.add('is-touch');
 			}
 
 			if (this.options.toolbar) {
 				this._createToolbar();
-				this.contentWrapper.appendChild(this.toolbar);
-				this.container.classList.add('has-toolbar');
-			} else {
-				if (this.options.closeButton) {
-					this.closeBtn = this._createCloseButton();
-					this.contentWrapper.appendChild(this.closeBtn);
+				if (this.options.toolbarAbsolute !== false) {
+					this.toolbar.classList.add('is-absolute');
+				} else {
+					this.contentWrapper.classList.add('has-controls');
 				}
+				this.container.classList.add('has-toolbar');
+			} else if (this.options.closeButton) {
+				this.closeBtn = this._createCloseButton();
+				this.contentWrapper.appendChild(this.closeBtn);
+				this._applyClosePosition();
 			}
 
 			this.content = h('div', 'lm-content');
+			if (this.options.toolbar) {
+				this.content.classList.add('has-toolbar');
+				this.content.appendChild(this.toolbar);
+			}
 			this.contentWrapper.appendChild(this.content);
 
-			if (!this.options.toolbar) {
-				if (this.isGallery && this.options.galleryNav) {
+			if (this.options.bottomSheet) {
+				const dragBottom = h('div', 'lm-drag-indicator lm-drag-indicator--bottom');
+				dragBottom.setAttribute('aria-hidden', 'true');
+				this.contentWrapper.appendChild(dragBottom);
+			}
+
+			if (this.isGallery && this.options.galleryNav) {
+				if (this.options.toolbar) {
+					this._createNavGroup();
+					this.content.insertBefore(this.navGroup, this.toolbar);
+				} else {
 					this.prevBtn = this._createNavButton('prev');
 					this.nextBtn = this._createNavButton('next');
 					this.container.appendChild(this.prevBtn);
@@ -524,18 +621,34 @@
 
 			if (this.options.mainClass) this.container.classList.add(this.options.mainClass);
 
-			if (this.options.width) {
-				this.contentWrapper.style.maxWidth =
-					typeof this.options.width === 'number' ? `${this.options.width}px` : this.options.width;
-			}
-			if (this.options.height) {
-				this.contentWrapper.style.maxHeight =
-					typeof this.options.height === 'number' ? `${this.options.height}px` : this.options.height;
-			}
+			this._applySizeVars();
 
 			document.body.appendChild(this.container);
 			this.attachEvents();
 			this._updateNavButtons();
+		}
+
+		_applySizeVars() {
+			const root = getComputedStyle(document.documentElement);
+			let w = this.options.width
+				? (typeof this.options.width === 'number' ? `${this.options.width}px` : this.options.width)
+				: root.getPropertyValue('--lm-max-width').trim() || 'min(90vw, 1200px)';
+			let h = this.options.height
+				? (typeof this.options.height === 'number' ? `${this.options.height}px` : this.options.height)
+				: root.getPropertyValue('--lm-max-height').trim() || 'none';
+
+			for (const el of [this.contentWrapper, this.content]) {
+				if (!el) continue;
+				el.style.setProperty('--lm-max-width', w);
+				el.style.setProperty('--lm-max-height', h);
+			}
+
+			if (this.options.width && this.contentWrapper) {
+				this.contentWrapper.style.maxWidth = w;
+			}
+			if (this.options.height && this.contentWrapper) {
+				this.contentWrapper.style.maxHeight = h;
+			}
 		}
 
 		_createCloseButton() {
@@ -549,6 +662,18 @@
 			btn.setAttribute('aria-label', this.options.closeLabel);
 			btn.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12"/></svg>';
 			return btn;
+		}
+
+		_createNavGroup() {
+			this.navGroup = h('ul', 'lm-nav-group');
+			this.navGroup.setAttribute('aria-label', 'Gallery navigation');
+			this.prevBtn = this._createNavButton('prev');
+			this.nextBtn = this._createNavButton('next');
+			const prevLi = h('li', 'lm-nav-item');
+			const nextLi = h('li', 'lm-nav-item');
+			prevLi.appendChild(this.prevBtn);
+			nextLi.appendChild(this.nextBtn);
+			this.navGroup.append(prevLi, nextLi);
 		}
 
 		_createNavButton(direction) {
@@ -568,51 +693,149 @@
 			return btn;
 		}
 
-		_createToolbar() {
-			this.toolbar = h('div', 'lm-toolbar');
-
-			for (const item of this.options.toolbarItems) {
-				switch (item) {
-					case 'close':
-						if (this.options.closeButton) {
-							this.closeBtn = this._createCloseButton();
-							this.toolbar.appendChild(this.closeBtn);
-						}
-						break;
-					case 'prev':
-						if (this.isGallery && this.options.galleryNav) {
-							this.prevBtn = this._createNavButton('prev');
-							this.toolbar.appendChild(this.prevBtn);
-						}
-						break;
-					case 'counter':
-						if (this.isGallery) {
-							this.toolbarCounter = h('span', 'lm-toolbar-counter');
-							this.toolbarCounter.textContent = `${this.currentIndex + 1} / ${this.items.length}`;
-							this.toolbar.appendChild(this.toolbarCounter);
-						}
-						break;
-					case 'next':
-						if (this.isGallery && this.options.galleryNav) {
-							this.nextBtn = this._createNavButton('next');
-							this.toolbar.appendChild(this.nextBtn);
-						}
-						break;
-					case 'fullscreen':
-						if (this.options.fullscreen) {
-							this._fullscreenBtn = this._createFullscreenButton();
-							this.toolbar.appendChild(this._fullscreenBtn);
-						}
-						break;
-					case 'zoom':
-						if (this.options.zoom) {
-							this._zoomBtn = this._createZoomButton();
-							this._zoomBtn.style.display = 'none';
-							this.toolbar.appendChild(this._zoomBtn);
-						}
-						break;
-				}
+		_getToolbarDisplay() {
+			if (this.options.toolbarDisplay) {
+				return {
+					left: [...(this.options.toolbarDisplay.left || [])],
+					middle: [...(this.options.toolbarDisplay.middle || [])],
+					right: [...(this.options.toolbarDisplay.right || [])],
+				};
 			}
+			if (this.options.toolbarItems?.length) {
+				return { left: [], middle: [...this.options.toolbarItems], right: [] };
+			}
+			const left = this.isGallery ? ['counter'] : [];
+			const middle = this.options.zoom
+				? ['zoomIn', 'zoomOut', 'toggle1to1', 'reset']
+				: [];
+			const right = [];
+			if (this.options.fullscreen) right.push('fullscreen');
+			if (this.options.closeButton) right.push('close');
+			return { left, middle, right };
+		}
+
+		_createToolbar() {
+			this.toolbar = h('nav', 'lm-toolbar');
+			this.toolbar.setAttribute('aria-label', 'Controls');
+			this._toolbarZoomBtns = [];
+			const display = this._getToolbarDisplay();
+			const columns = [
+				['left', 'lm-toolbar-group lm-toolbar-group--start'],
+				['middle', 'lm-toolbar-group lm-toolbar-group--tools'],
+				['right', 'lm-toolbar-group lm-toolbar-group--actions'],
+			];
+			for (const [key, cls] of columns) {
+				const col = h('ul', cls);
+				for (const item of display[key]) {
+					this._appendToolbarItem(col, item);
+				}
+				if (col.childNodes.length) this.toolbar.appendChild(col);
+			}
+		}
+
+		_toolbarAppendItem(list, node) {
+			const li = h('li', 'lm-toolbar-item');
+			li.appendChild(node);
+			list.appendChild(li);
+			return li;
+		}
+
+		_appendToolbarItem(parent, item) {
+			switch (item) {
+				case 'close':
+					if (this.options.closeButton) {
+						this.closeBtn = this._createCloseButton();
+						this.closeBtn.classList.add('lm-toolbar-btn', 'lm-toolbar-btn--dismiss');
+						this.closeBtn.addEventListener('click', (e) => e.stopPropagation());
+						this._toolbarAppendItem(parent, this.closeBtn);
+					}
+					break;
+				case 'prev':
+					if (this.isGallery && this.options.galleryNav) {
+						this.prevBtn = this._createNavButton('prev');
+						this._toolbarAppendItem(parent, this.prevBtn);
+					}
+					break;
+				case 'counter':
+					if (this.isGallery) {
+						this.toolbarCounter = h('div', 'lm-toolbar-counter');
+						this.toolbarCounterCurrent = h('span');
+						this.toolbarCounterCurrent.textContent = String(this.currentIndex + 1);
+						this.toolbarCounterTotal = h('span');
+						this.toolbarCounterTotal.textContent = String(this.items.length);
+						this.toolbarCounter.append(
+							this.toolbarCounterCurrent,
+							h('span', 'lm-toolbar-counter-sep', '·'),
+							this.toolbarCounterTotal
+						);
+						this._toolbarAppendItem(parent, this.toolbarCounter);
+					}
+					break;
+				case 'next':
+					if (this.isGallery && this.options.galleryNav) {
+						this.nextBtn = this._createNavButton('next');
+						this._toolbarAppendItem(parent, this.nextBtn);
+					}
+					break;
+				case 'fullscreen':
+					if (this.options.fullscreen) {
+						this._fullscreenBtn = this._createFullscreenButton();
+						this._toolbarAppendItem(parent, this._fullscreenBtn);
+					}
+					break;
+				case 'zoom':
+					if (this.options.zoom) {
+						this._appendToolbarItem(parent, 'zoomIn');
+						this._appendToolbarItem(parent, 'zoomOut');
+					}
+					break;
+				case 'zoomIn':
+				case 'zoomOut':
+				case 'toggle1to1':
+				case 'rotateCCW':
+				case 'rotateCW':
+				case 'flipX':
+				case 'flipY':
+				case 'reset':
+					if (!this.options.zoom) break;
+					this._toolbarAppendItem(parent, this._createPanzoomButton(item));
+					break;
+			}
+		}
+
+		_createPanzoomButton(action) {
+			const labels = {
+				zoomIn: this.options.zoomInLabel,
+				zoomOut: this.options.zoomOutLabel,
+				toggle1to1: this.options.toggle1to1Label,
+				rotateCCW: this.options.rotateCCWLabel,
+				rotateCW: this.options.rotateCWLabel,
+				flipX: this.options.flipXLabel,
+				flipY: this.options.flipYLabel,
+				reset: this.options.resetLabel,
+			};
+			const handlers = {
+				zoomIn: () => this._zoomIn?.(),
+				zoomOut: () => this._zoomOut?.(),
+				toggle1to1: () => this._zoomToggle1to1?.(),
+				rotateCCW: () => this._rotateCCW?.(),
+				rotateCW: () => this._rotateCW?.(),
+				flipX: () => this._flipX?.(),
+				flipY: () => this._flipY?.(),
+				reset: () => this._zoomReset?.(),
+			};
+			const btn = h('button', 'lm-toolbar-btn');
+			btn.type = 'button';
+			btn.setAttribute('aria-label', labels[action]);
+			btn.dataset.lmToolbarAction = action;
+			btn.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true">${TOOLBAR_ICONS[action]}</svg>`;
+			btn.addEventListener('click', (e) => {
+				e.stopPropagation();
+				handlers[action]?.();
+			});
+			btn.style.display = 'none';
+			this._toolbarZoomBtns.push(btn);
+			return btn;
 		}
 
 		_createFullscreenButton() {
@@ -620,27 +843,21 @@
 			btn.type = 'button';
 			btn.setAttribute('aria-label', this.options.fullscreenLabel);
 			btn.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true">
-				<path class="lm-icon-expand" d="M8 3H5a2 2 0 00-2 2v3M21 8V5a2 2 0 00-2-2h-3M8 21H5a2 2 0 01-2-2v-3M16 21h3a2 2 0 002-2v-3"/>
-				<path class="lm-icon-shrink" style="display:none" d="M8 3v3a2 2 0 01-2 2H3M21 8h-3a2 2 0 01-2-2V3M8 21v-3a2 2 0 00-2-2H3M21 16h-3a2 2 0 00-2 2v3"/>
+				<g class="lm-icon-expand">${TOOLBAR_ICONS.fullscreen}</g>
+				<g class="lm-icon-shrink" style="display:none">${TOOLBAR_ICONS.fullscreenExit}</g>
 			</svg>`;
-			btn.addEventListener('click', () => this._toggleFullscreen());
+			btn.addEventListener('click', (e) => {
+				e.stopPropagation();
+				this._toggleFullscreen();
+			});
 			return btn;
 		}
 
-		_createZoomButton() {
-			const btn = h('button', 'lm-toolbar-btn lm-zoom-btn');
-			btn.type = 'button';
-			btn.setAttribute('aria-label', 'Zoom');
-			btn.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true">
-				<circle cx="11" cy="11" r="8"/>
-				<path class="lm-icon-zoom-in" d="M21 21l-4.35-4.35M11 8v6M8 11h6"/>
-				<path class="lm-icon-zoom-out" style="display:none" d="M21 21l-4.35-4.35M8 11h6"/>
-			</svg>`;
-			btn.addEventListener('click', () => {
-				if (this._zoomActive) this._zoomReset?.();
-				else this._zoomBy?.(this.options.zoomStep * 2);
-			});
-			return btn;
+		_updateToolbarZoomVisibility(show) {
+			const display = show ? '' : 'none';
+			if (this._toolbarZoomBtns) {
+				for (const btn of this._toolbarZoomBtns) btn.style.display = display;
+			}
 		}
 
 		_updateNavButtons() {
@@ -654,7 +871,10 @@
 				if (this.currentIndex === this.items.length - 1) this.nextBtn?.setAttribute('disabled', '');
 				else this.nextBtn?.removeAttribute('disabled');
 			}
-			if (this.toolbarCounter) {
+			if (this.toolbarCounterCurrent) {
+				this.toolbarCounterCurrent.textContent = String(this.currentIndex + 1);
+				this.toolbarCounterTotal.textContent = String(this.items.length);
+			} else if (this.toolbarCounter) {
 				this.toolbarCounter.textContent = `${this.currentIndex + 1} / ${this.items.length}`;
 			}
 		}
@@ -665,10 +885,25 @@
 					if (this._justDragged) return;
 					this.close();
 				});
+
+				// has-html: слайд на весь экран перекрывает backdrop — закрываем по клику вне карточки
+				this._wrapperClickHandler = (e) => {
+					if (this._justDragged) return;
+					if (!this.contentWrapper.classList.contains('has-html')) return;
+					if (this.content.contains(e.target)) return;
+					if (this.toolbar?.contains(e.target)) return;
+					if (this.contentWrapper.querySelector('.lm-caption')?.contains(e.target)) return;
+					if (e.target.closest('.lm-drag-indicator, .lm-tap-bar-moved')) return;
+					this.close();
+				};
+				this.contentWrapper.addEventListener('click', this._wrapperClickHandler);
 			}
 
 			if (this.closeBtn) {
-				this.closeBtn.addEventListener('click', () => this.close());
+				this.closeBtn.addEventListener('click', (e) => {
+					e.stopPropagation();
+					this.close();
+				});
 			}
 
 			if (this.prevBtn) {
@@ -777,10 +1012,7 @@
 				startY = currentY = c.y;
 				isDragging = false;
 				dragAxis = null;
-				scrollableAncestor = null;
-				if (e.type === 'touchstart') {
-					scrollableAncestor = getScrollableParent(e.target, this.contentWrapper);
-				}
+				scrollableAncestor = getScrollableParent(e.target, this.contentWrapper);
 				if (e.type === 'mousedown') {
 					e.preventDefault();
 					isMouseDown = true;
@@ -797,10 +1029,14 @@
 				const dx = currentX - startX, dy = currentY - startY;
 
 				if (!isDragging && (Math.abs(dx) > 10 || Math.abs(dy) > 10)) {
-					// Мобилка: уступаем нативному скроллу если внутри скроллируемого элемента
-					if (scrollableAncestor && Math.abs(dy) >= Math.abs(dx)) {
+					if (this.options.bottomSheet && Math.abs(dy) >= Math.abs(dx)) {
+						// Bottom sheet: вверх — ничего; вниз — закрытие, когда контент наверху
+						if (dy < 0) return;
+						if (scrollableAncestor && scrollableAncestor.scrollTop > 1) return;
+					} else if (scrollableAncestor && Math.abs(dy) >= Math.abs(dx)) {
 						const atTop = scrollableAncestor.scrollTop <= 1;
-						const atBottom = scrollableAncestor.scrollTop + scrollableAncestor.clientHeight >= scrollableAncestor.scrollHeight - 1;
+						const atBottom = scrollableAncestor.scrollTop + scrollableAncestor.clientHeight
+							>= scrollableAncestor.scrollHeight - 1;
 						if (dy > 0 && !atTop) return;
 						if (dy < 0 && !atBottom) return;
 					}
@@ -819,8 +1055,9 @@
 				if (dragAxis === 'y' && e.cancelable) e.preventDefault();
 
 				if (dragAxis === 'y') {
-					// Для bottom sheet — сопротивление при свайпе вверх
-					const effectiveDy = this.options.bottomSheet ? Math.max(-24, dy) : dy;
+					const effectiveDy = this.options.bottomSheet
+						? Math.max(0, dy)
+						: dy;
 					const p = Math.min(Math.abs(effectiveDy) / 200, 1);
 					this.contentWrapper.style.transform = `translateY(${effectiveDy}px)`;
 					this.contentWrapper.style.opacity = 1 - p * 0.3;
@@ -855,7 +1092,8 @@
 				const dy = currentY - startY;
 				this.contentWrapper.classList.remove('is-dragging', 'is-draggable');
 
-				const closeThreshold = this.options.bottomSheet ? 150 : 100;
+				// Bottom sheet вниз не тянется — закрытие только backdrop / API
+				const closeThreshold = 100;
 				const closeVertical = dragAxis === 'y' && dy > closeThreshold;
 				const swipeHorizontal = dragAxis === 'x'
 					&& this.isGallery
@@ -1021,6 +1259,66 @@
 			}
 		}
 
+		_getClosePosition() {
+			const p = this.options.closePosition;
+			if (p === 'static' || p === 'absolute' || p === 'fixed') return p;
+
+			if (this.isGallery) return 'absolute';
+			if (this.content?.classList.contains('has-iframe')) return 'absolute';
+
+			const el = this.content?.firstElementChild;
+			if (el instanceof HTMLImageElement || el instanceof HTMLVideoElement) return 'absolute';
+
+			return 'static';
+		}
+
+		_applyClosePosition() {
+			if (!this.closeBtn || this.options.toolbar) return;
+
+			const pos = this._getClosePosition();
+			this.closeBtn.classList.remove('lm-close-btn--static', 'lm-close-btn--absolute', 'lm-close-btn--fixed');
+			this.closeBtn.classList.add(`lm-close-btn--${pos}`);
+
+			if (pos === 'fixed') {
+				if (this.closeBtn.parentElement !== this.container) {
+					this.container.appendChild(this.closeBtn);
+				}
+				return;
+			}
+
+			if (this.contentWrapper?.classList.contains('has-html')) {
+				if (this.closeBtn.parentElement !== this.content) {
+					this.content.insertBefore(this.closeBtn, this.content.firstChild);
+				} else if (this.closeBtn !== this.content.firstElementChild) {
+					this.content.insertBefore(this.closeBtn, this.content.firstChild);
+				}
+			} else if (this.closeBtn.parentElement !== this.contentWrapper) {
+				this.contentWrapper.insertBefore(this.closeBtn, this.content);
+			}
+		}
+
+		_setHtmlMode(isHtml) {
+			// Slide-режим (has-html): все типы кроме bottom sheet — отступ сверху как у inline
+			const enable = isHtml && !this.options.bottomSheet;
+			this.contentWrapper?.classList.toggle('has-html', enable);
+			this.container?.classList.toggle('has-html-content', enable);
+
+			// В HTML-режиме слайд на весь viewport; width/height — у белой карточки (.lm-content)
+			if (!this.contentWrapper) return;
+			if (enable) {
+				this.contentWrapper.style.maxWidth = '';
+				this.contentWrapper.style.maxHeight = '';
+			} else {
+				const w = this.contentWrapper.style.getPropertyValue('--lm-max-width');
+				const h = this.contentWrapper.style.getPropertyValue('--lm-max-height');
+				if (w) this.contentWrapper.style.maxWidth = w;
+				if (h) this.contentWrapper.style.maxHeight = h;
+			}
+
+			this._applySizeVars();
+			this._applyClosePosition();
+		}
+
 		async loadContent(item) {
 			const token = Symbol();
 			this._loadToken = token;
@@ -1036,26 +1334,32 @@
 				this._prevSrcAdd = item.dataSrcAdd;
 			}
 
+			this._setHtmlMode(false);
 			this.content.classList.remove('has-inline-content', 'has-iframe', 'has-ajax');
 			this.showLoader();
 
 			try {
-				// Inline
+				// Inline (#id, <template> или узел внутри template)
 				if (src.startsWith('#')) {
-					const el = document.querySelector(src);
-					if (!el) throw new Error(`Элемент ${src} не найден`);
+					const resolved = resolveInlineSource(src);
+					if (!resolved) throw new Error(`Элемент ${src} не найден`);
 
-					if (!el._lmOriginalParent) {
-						el._lmOriginalParent = el.parentNode;
-						el._lmOriginalNextSibling = el.nextSibling;
-						el._lmOriginalStyleDisplay = el.style.display;
-						el._lmOriginalClasses = el.className;
+					const { el, cloned } = resolved;
+
+					if (!cloned) {
+						if (!el._lmOriginalParent) {
+							el._lmOriginalParent = el.parentNode;
+							el._lmOriginalNextSibling = el.nextSibling;
+							el._lmOriginalStyleDisplay = el.style.display;
+							el._lmOriginalClasses = el.className;
+						}
+						el.style.display = 'block';
 					}
-					el.style.display = 'block';
+
 					if (this._loadToken !== token) return;
 					this.setContent(el);
 					this.content.classList.add('has-inline-content');
-					this.movedElement = el;
+					this.movedElement = cloned ? null : el;
 					return;
 				}
 
@@ -1173,8 +1477,12 @@
 			this.contentWrapper.querySelector('.lm-caption')?.remove();
 			this.container.querySelector('.lm-counter')?.remove();
 
-			this.content.innerHTML = '';
+			for (const child of [...this.content.children]) {
+				if (child !== this.toolbar && child !== this.navGroup) child.remove();
+			}
 			this.content.appendChild(element);
+			this._setHtmlMode(!this.options.bottomSheet);
+			this._applyClosePosition();
 
 			const item = this.items[this.currentIndex];
 			if (item.caption) {
@@ -1184,7 +1492,10 @@
 			}
 
 			if (this.isGallery) {
-				if (this.toolbarCounter) {
+				if (this.toolbarCounterCurrent) {
+					this.toolbarCounterCurrent.textContent = String(this.currentIndex + 1);
+					this.toolbarCounterTotal.textContent = String(this.items.length);
+				} else if (this.toolbarCounter) {
 					this.toolbarCounter.textContent = `${this.currentIndex + 1} / ${this.items.length}`;
 				} else {
 					this.container.querySelector('.lm-counter')?.remove();
@@ -1214,10 +1525,8 @@
 			const isImage = element instanceof HTMLImageElement;
 			if (this.options.zoom && isImage) {
 				this._zoomCleanup = this._setupZoom(element);
-				if (this._zoomBtn) this._zoomBtn.style.display = '';
-			} else if (this._zoomBtn) {
-				this._zoomBtn.style.display = 'none';
 			}
+			this._updateToolbarZoomVisibility(this.options.zoom && isImage);
 
 			this.emit('contentReady', item);
 			if (this.options.formAutoReset) this._bindForms();
@@ -1266,15 +1575,19 @@
 		}
 
 		_setupZoom(img) {
-			let scale = 1, panX = 0, panY = 0;
-			let isPanning = false, startPX = 0, startPY = 0;
+			let scale = 1, panX = 0, panY = 0, angle = 0, flipX = 1, flipY = 1;
 			let isMouseDown = false;
 			const MIN = this.options.zoomMin, MAX = this.options.zoomMax;
 			const cw = this.content;
 
 			img.classList.add('lm-zoomable');
 
+			const isTransformed = () =>
+				scale > MIN + 0.01 || Math.abs(panX) > 0.5 || Math.abs(panY) > 0.5
+				|| angle % 360 !== 0 || flipX !== 1 || flipY !== 1;
+
 			const clampPan = () => {
+				if (angle % 360 !== 0) return;
 				const ww = cw.clientWidth, wh = cw.clientHeight;
 				const maxX = Math.max(0, (img.naturalWidth * scale - ww) / (2 * scale));
 				const maxY = Math.max(0, (img.naturalHeight * scale - wh) / (2 * scale));
@@ -1284,13 +1597,10 @@
 
 			const applyTransform = (animated) => {
 				img.style.transition = animated ? 'transform 0.25s ease' : 'none';
-				img.style.transform = `scale(${scale}) translate(${panX}px, ${panY}px)`;
-				this._zoomActive = scale > MIN;
+				img.style.transform =
+					`translate(${panX}px, ${panY}px) rotate(${angle}deg) scale(${scale * flipX}, ${scale * flipY})`;
+				this._zoomActive = isTransformed();
 				cw.classList.toggle('is-zoomed', this._zoomActive);
-				if (this._zoomBtn) {
-					this._zoomBtn.querySelector('.lm-icon-zoom-in')?.style.setProperty('display', this._zoomActive ? 'none' : '');
-					this._zoomBtn.querySelector('.lm-icon-zoom-out')?.style.setProperty('display', this._zoomActive ? '' : 'none');
-				}
 			};
 
 			const zoomTo = (newScale, pivotX, pivotY) => {
@@ -1307,10 +1617,29 @@
 				applyTransform(true);
 			};
 
+			const resetAll = () => {
+				scale = MIN;
+				panX = 0;
+				panY = 0;
+				angle = 0;
+				flipX = 1;
+				flipY = 1;
+				applyTransform(true);
+			};
+
+			const fitScale = () => {
+				if (!img.naturalWidth || !img.naturalHeight) return MAX;
+				return Math.min(
+					cw.clientWidth / img.naturalWidth,
+					cw.clientHeight / img.naturalHeight,
+					MAX
+				);
+			};
+
 			// Double-click
 			const onDblClick = (e) => {
 				e.stopPropagation();
-				if (scale > MIN) { scale = MIN; panX = 0; panY = 0; applyTransform(true); }
+				if (isTransformed()) resetAll();
 				else zoomTo(MIN + this.options.zoomStep * 2, e.clientX, e.clientY);
 			};
 
@@ -1321,9 +1650,10 @@
 			};
 
 			// Mouse drag pan
+			let startPX = 0, startPY = 0;
 			const onMouseDown = (e) => {
 				if (!this._zoomActive) return;
-				isMouseDown = isPanning = true;
+				isMouseDown = true;
 				startPX = e.clientX - panX * scale;
 				startPY = e.clientY - panY * scale;
 				img.style.transition = 'none';
@@ -1340,7 +1670,7 @@
 			};
 			const onMouseUp = () => {
 				if (!isMouseDown) return;
-				isMouseDown = isPanning = false;
+				isMouseDown = false;
 				cw.classList.remove('is-zoom-dragging');
 			};
 
@@ -1382,7 +1712,23 @@
 			cw.addEventListener('touchend', onTouchEnd, { passive: true });
 
 			this._zoomBy = (delta) => zoomTo(scale + delta);
-			this._zoomReset = () => { scale = MIN; panX = 0; panY = 0; applyTransform(true); };
+			this._zoomIn = () => zoomTo(scale + this.options.zoomStep);
+			this._zoomOut = () => zoomTo(scale - this.options.zoomStep);
+			this._zoomToggle1to1 = () => {
+				if (Math.abs(scale - 1) < 0.05 && Math.abs(panX) < 0.5 && Math.abs(panY) < 0.5) {
+					zoomTo(fitScale());
+				} else {
+					scale = 1;
+					panX = 0;
+					panY = 0;
+					applyTransform(true);
+				}
+			};
+			this._rotateCCW = () => { angle -= 90; applyTransform(true); };
+			this._rotateCW = () => { angle += 90; applyTransform(true); };
+			this._flipX = () => { flipX *= -1; applyTransform(true); };
+			this._flipY = () => { flipY *= -1; applyTransform(true); };
+			this._zoomReset = resetAll;
 
 			return () => {
 				img.classList.remove('lm-zoomable');
@@ -1396,6 +1742,13 @@
 				cw.removeEventListener('touchmove', onTouchMove);
 				cw.removeEventListener('touchend', onTouchEnd);
 				delete this._zoomBy;
+				delete this._zoomIn;
+				delete this._zoomOut;
+				delete this._zoomToggle1to1;
+				delete this._rotateCCW;
+				delete this._rotateCW;
+				delete this._flipX;
+				delete this._flipY;
 				delete this._zoomReset;
 			};
 		}
@@ -1462,9 +1815,88 @@
 
 		showError(message) {
 			this.hideLoader();
+			this.content.innerHTML = '';
 			const tmp = h('div');
 			tmp.innerHTML = this.options.errorTpl.replace('{{message}}', message);
 			this.content.appendChild(tmp.firstElementChild);
+			this._setHtmlMode(!this.options.bottomSheet);
+			this._applyClosePosition();
+		}
+
+		_getTapBarSelector() {
+			const opt = this.options.tapBarMove;
+			if (!opt) return null;
+			if (opt === true) return '[data-lm-tap-bar], .demo-tapbar';
+			return typeof opt === 'string' ? opt : null;
+		}
+
+		_teleportTapBar() {
+			if (!this.options.bottomSheet || !this.options.tapBarMove) return;
+
+			const selector = this._getTapBarSelector();
+			const el = selector ? document.querySelector(selector) : null;
+			if (!el || !this.contentWrapper) return;
+
+			this._tapBarEl = el;
+			this._tapBarParent = el.parentNode;
+			this._tapBarNext = el.nextSibling;
+
+			const height = el.getBoundingClientRect().height;
+			this.contentWrapper.style.setProperty('--lm-tap-bar-height', `${height}px`);
+
+			el.classList.add('lm-tap-bar-moved');
+			this.contentWrapper.appendChild(el);
+			document.body.classList.add('lm-tap-bar-teleported');
+
+			requestAnimationFrame(() => {
+				if (!this._tapBarEl) return;
+				const h = this._tapBarEl.getBoundingClientRect().height;
+				this.contentWrapper?.style.setProperty('--lm-tap-bar-height', `${h}px`);
+			});
+
+			this._tapBarClickHandler = (e) => {
+				const link = e.target.closest('a[href^="#"]');
+				if (!link || !el.contains(link)) return;
+				const id = link.getAttribute('href');
+				e.preventDefault();
+				e.stopPropagation();
+				this.close().then(() => {
+					const target = id ? document.querySelector(id) : null;
+					if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+					if (id) history.replaceState(null, '', id);
+				});
+			};
+			el.addEventListener('click', this._tapBarClickHandler, true);
+		}
+
+		_restoreTapBar() {
+			const el = this._tapBarEl;
+			if (!el) return;
+
+			if (this._tapBarClickHandler) {
+				el.removeEventListener('click', this._tapBarClickHandler, true);
+				this._tapBarClickHandler = null;
+			}
+
+			el.classList.remove('lm-tap-bar-moved');
+			this.contentWrapper?.style.removeProperty('--lm-tap-bar-height');
+			document.body.classList.remove('lm-tap-bar-teleported');
+
+			if (this._tapBarParent && document.contains(this._tapBarParent)) {
+				try {
+					if (this._tapBarNext && document.contains(this._tapBarNext)) {
+						this._tapBarParent.insertBefore(el, this._tapBarNext);
+					} else {
+						this._tapBarParent.appendChild(el);
+					}
+				} catch (_) {
+					this._tapBarParent.appendChild(el);
+				}
+			}
+
+			this._tapBarEl = null;
+			this._tapBarParent = null;
+			this._tapBarNext = null;
 		}
 
 		open() {
@@ -1479,8 +1911,15 @@
 				this.container.style.display = 'flex';
 			}
 
+			this._teleportTapBar();
+
 			requestAnimationFrame(() => {
 				this.container.classList.add('is-open');
+				clearTimeout(this._readyTimer);
+				this._readyTimer = setTimeout(() => {
+					this.container?.classList.add('is-ready');
+					this._readyTimer = null;
+				}, this.options.openSpeed);
 			});
 
 			this.state = States.Ready;
@@ -1500,7 +1939,9 @@
 			if (this.emit('beforeClose') === false) return Promise.resolve();
 
 			this.state = States.Closing;
-			this.container.classList.remove('is-open');
+			clearTimeout(this._readyTimer);
+			this._readyTimer = null;
+			this.container.classList.remove('is-open', 'is-ready');
 			this.container.classList.add('is-closing');
 
 			if (this._ajaxController) {
@@ -1539,8 +1980,12 @@
 			}
 
 			this.stopMedia();
+			this._restoreTapBar();
 
-			if (this.contentWrapper) this.contentWrapper.className = 'lm-content-wrapper';
+			if (this.contentWrapper) {
+				this.contentWrapper.className = 'lm-content-wrapper';
+				this.container?.classList.remove('has-html-content', 'has-tap-bar-move');
+			}
 			if (this._dragCleanup) this._dragCleanup();
 			if (this._idleCleanup) this._idleCleanup();
 			if (this.removeFocusTrap) {
@@ -1555,9 +2000,17 @@
 				this.container.removeEventListener('cancel', this._cancelHandler);
 				this._cancelHandler = null;
 			}
+			if (this._wrapperClickHandler && this.contentWrapper) {
+				this.contentWrapper.removeEventListener('click', this._wrapperClickHandler);
+				this._wrapperClickHandler = null;
+			}
 			if (this._justDraggedTimer) {
 				clearTimeout(this._justDraggedTimer);
 				this._justDraggedTimer = null;
+			}
+			if (this._readyTimer) {
+				clearTimeout(this._readyTimer);
+				this._readyTimer = null;
 			}
 
 			if (this.options.restoreFocus && this.previousFocus) {
@@ -1746,6 +2199,10 @@
 
 				if (trigger.dataset.springBottomSheet === 'true') options.bottomSheet = true;
 				if (trigger.dataset.customBackground) options.customBackground = trigger.dataset.customBackground;
+				if (trigger.dataset.tapBarMove != null && trigger.dataset.tapBarMove !== '') {
+					const v = trigger.dataset.tapBarMove;
+					options.tapBarMove = v === 'true' ? true : v === 'false' ? false : v;
+				}
 
 				LightModal.open(items, options);
 			});
@@ -1754,7 +2211,7 @@
 
 	// ─── Экспорт ─────────────────────────────────────────────────────────────────
 	window.LightModal = LightModal;
-	window.openModal = id => LightModal.open(`#${id}`);
+	window.openModal = (id, options = {}) => LightModal.open(`#${id}`, options);
 	window.closeModal = () => LightModal.close();
 
 	if (document.readyState === 'loading') {

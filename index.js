@@ -6,6 +6,7 @@ class DemoShowcaseApp {
 
   init() {
     this.initLenis();
+    this.initTapbar();
     this.initGlobalEvents();
     this.initButtons();
     this.initFormDemo();
@@ -37,6 +38,65 @@ class DemoShowcaseApp {
     window.setInterval(() => {
       this.lenisBadge.textContent = `Lenis: ${lenis.isStopped ? "stopped" : "running"}`;
     }, 150);
+
+    this.lenisBadge.style.bottom = window.matchMedia("(max-width: 767px)").matches
+      ? "calc(4.5rem + env(safe-area-inset-bottom, 0px))"
+      : "12px";
+  }
+
+  initTapbar() {
+    const tapbar = document.querySelector(".demo-tapbar");
+    if (!tapbar) return;
+
+    const links = [...tapbar.querySelectorAll(".demo-tapbar__link")];
+    const sections = links
+      .map((link) => document.querySelector(link.getAttribute("href")))
+      .filter(Boolean);
+
+    const scrollToSection = (target) => {
+      if (!target) return;
+      if (this.lenis) {
+        this.lenis.scrollTo(target, { offset: -12, duration: 0.9 });
+        return;
+      }
+      target.scrollIntoView({ behavior: "smooth", block: "start" });
+    };
+
+    links.forEach((link) => {
+      link.addEventListener("click", (e) => {
+        const id = link.getAttribute("href");
+        const target = id ? document.querySelector(id) : null;
+        if (!target) return;
+        e.preventDefault();
+        scrollToSection(target);
+        history.replaceState(null, "", id);
+      });
+    });
+
+    if (!sections.length || !("IntersectionObserver" in window)) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries
+          .filter((entry) => entry.isIntersecting)
+          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+        if (!visible) return;
+
+        links.forEach((link) => {
+          const active = link.getAttribute("href") === `#${visible.target.id}`;
+          link.classList.toggle("is-active", active);
+          if (active) link.setAttribute("aria-current", "true");
+          else link.removeAttribute("aria-current");
+        });
+      },
+      {
+        root: null,
+        rootMargin: "-20% 0px -55% 0px",
+        threshold: [0.1, 0.35, 0.6],
+      },
+    );
+
+    sections.forEach((section) => observer.observe(section));
   }
 
   initGlobalEvents() {
@@ -58,22 +118,24 @@ class DemoShowcaseApp {
         theme: "dark",
         width: "92vw",
         height: "80vh",
+        closePosition: "absolute",
       });
     });
 
     const openStackBtn = document.getElementById("js-open-stack");
     openStackBtn?.addEventListener("click", async () => {
-      await LightModal.open("#inline-simple", { theme: "light", width: 520 });
-      await LightModal.open("assets/nasa/PIA25691.jpg", { theme: "dark" });
+      await LightModal.open("#inline-simple", { theme: "light", width: 520, closePosition: "static" });
+      await LightModal.open("assets/nasa/PIA25691.jpg", { theme: "dark", closePosition: "absolute" });
     });
 
     const openReplaceBtn = document.getElementById("js-open-replace");
     openReplaceBtn?.addEventListener("click", async () => {
-      await LightModal.open("#inline-form", { theme: "light", width: 560 });
+      await LightModal.open("#inline-form", { theme: "light", width: 560, closePosition: "static" });
       await LightModal.open("assets/nasa/PIA17283.jpg", {
         closeExisting: true,
         theme: "dark",
         mainClass: "lm-fade",
+        closePosition: "absolute",
       });
     });
 
@@ -83,6 +145,7 @@ class DemoShowcaseApp {
         type: "json",
         width: 720,
         theme: "light",
+        closePosition: "static",
         ajaxSuccess(data) {
           const price = new Intl.NumberFormat("ru-RU").format(data.price);
           return `
@@ -122,6 +185,7 @@ class DemoShowcaseApp {
         theme: "light",
         width: 520,
         closeOnBackdrop: false,
+        closePosition: "static",
       });
     });
   }

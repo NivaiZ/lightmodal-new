@@ -19,18 +19,24 @@
 - 📱 **Полная адаптивность** — отлично работает на всех устройствах
 - 🎨 **Темы** — поддержка светлой/тёмной темы с auto-detect
 - 🖱️ **Drag-to-close** — закрытие свайпом вверх или вниз (мышь + touch)
+- 📱 **Bottom Sheet** — нижняя шторка со spring-анимацией, нативный скролл внутри
+- 🧭 **Tap-bar teleport** — перенос нижней навигации внутрь sheet (как Vue `<Teleport>`)
+- 📜 **HTML slide mode** — скролл на весь viewport, карточка растёт по контенту (inline, AJAX, media)
+- 🧰 **Toolbar** — плавающий dock внутри `.lm-content`: счётчик, зум, fullscreen, закрытие
+- 🔍 **Zoom** — double-click, колесо, pinch; кнопки в тулбаре и клавиши `+` / `-` / `0`
+- 🖥️ **Fullscreen** — нативный Fullscreen API, кнопка в тулбаре и клавиша `f`
 - 🖼️ **Универсальность** — изображения, видео, YouTube, Vimeo, Rutube, VK Video, iframe, inline-контент
 - ♿ **Доступность** — полная поддержка клавиатуры, screen readers, ARIA
-- 🎭 **Анимации** — плавные и настраиваемые эффекты
+- 🎭 **Анимации** — `mainClass`: `lm-zoom-in`, `lm-slide-up`, `lm-fade` (анимируется карточка, не слайд)
 - 🔒 **Focus trap** — обновляется после каждой загрузки контента
-- 💤 **Idle режим** — автоскрытие элементов управления (mouse + touch + keyboard)
+- 💤 **Idle режим** — автоскрытие тулбара и стрелок галереи (mouse + touch + keyboard)
 - 🌐 **Dialog API** — нативный `<dialog>` где поддерживается, `<div>` как fallback
 - 📡 **DOM-события** — `lightmodal:open` / `lightmodal:close` для интеграции с внешними модулями
 
 ## 🛠️ Разработка
 
 > **Правки вносить только в `lightmodal.js` и `lightmodal.css`.**
-> Файлы `lightmodal.min.js` и `lightmodal.min.css` — минифицированные версии, обновляются вручную и в редактировании не нуждаются.
+> Файлы `lightmodal.min.js` и `lightmodal.min.css` — минифицированные версии, пересобираются через `npm run build`.
 
 ## 📦 Установка
 
@@ -47,13 +53,16 @@
 - **`index.html`** — витринная страница со всеми типами контента и примерами опций/событий.
 - **`demo/ajax.html`** и **`demo/product.json`** — локальные фикстуры для проверки `type: 'ajax'` / `type: 'json'`.
 
-Запуск локально (любой статический сервер). Например:
+Запуск локально:
 
 ```bash
-python -m http.server 4173
+npm install
+npm run dev
 ```
 
-Открой `http://127.0.0.1:4173/index.html`.
+Открой `http://localhost:3000/`. Сборка минифицированных файлов: `npm run build`.
+
+Альтернатива — любой статический сервер (`python -m http.server 4173` и т.п.).
 
 ## 🚀 Быстрый старт
 
@@ -66,10 +75,13 @@ python -m http.server 4173
 
 <!-- Inline контент -->
 <a href="#my-modal" data-lightmodal>Показать модалку</a>
-<div id="my-modal" class="inline-content">
-  <h2>Заголовок</h2>
-  <p>Контент модалки...</p>
-</div>
+
+<template id="my-modal">
+  <div class="inline-content">
+    <h2>Заголовок</h2>
+    <p>Контент модалки...</p>
+  </div>
+</template>
 ```
 
 ### JavaScript API
@@ -87,6 +99,35 @@ LightModal.open('#contact-form', {
 
 // async/await — open() возвращает Promise<LightModal>
 const modal = await LightModal.open('video.mp4', { theme: 'dark' });
+```
+
+### Inline: `<template>` (рекомендуется)
+
+Контент внутри `<template>` **не рендерится** на странице — вёрстка не «болтается» в DOM. При открытии `#id` библиотека клонирует содержимое через `document.importNode()` (как рекомендует [MDN](https://developer.mozilla.org/en-US/docs/Web/HTML/Element/template)).
+
+```html
+<a href="#contact-form" data-lightmodal>Форма</a>
+
+<template id="contact-form">
+  <div class="inline-content">
+    <h2>Обратная связь</h2>
+    <form>...</form>
+  </div>
+</template>
+```
+
+Разрешение `#id` (в порядке приоритета):
+
+1. **`<template id="…">`** — клон при каждом открытии (шаблон остаётся на месте)
+2. **Живой DOM-узел** с `id` — перенос в модалку и возврат при закрытии (legacy)
+3. **`#id` внутри `template.content`** — клон найденного узла
+
+AJAX/JSON **не затрагиваются**: ответ по-прежнему парсится через временный `<template>` внутри библиотеки и вставляется как DOM.
+
+```javascript
+// Template и обычный inline — одинаковый API
+LightModal.open('#contact-form');
+LightModal.open('/api/modal.html', { type: 'ajax' });
 ```
 
 ## 📖 Документация
@@ -111,6 +152,9 @@ const modal = await LightModal.open('video.mp4', { theme: 'dark' });
    data-lm-loop="false"
    data-lm-gallery-nav="true"
    data-lm-gallery-swipe="true"
+   data-lm-toolbar="true"
+   data-lm-zoom="true"
+   data-lm-fullscreen="true"
    data-lm-ajax-selector=".selector"
    data-lm-idle="3000">
   Открыть
@@ -127,7 +171,7 @@ const modal = await LightModal.open('video.mp4', { theme: 'dark' });
 | `data-gallery` | Имя галереи (группировка) | — |
 | `data-alt` | Alt для изображений | — |
 | `data-lm-theme` | Тема: `dark`, `light`, `auto` | `dark` |
-| `data-lm-main-class` | Доп. CSS-класс контейнера | `''` |
+| `data-lm-main-class` | Доп. CSS-класс контейнера (`lm-zoom-in`, `lm-slide-up`, `lm-fade`) | `''` |
 | `data-lm-width` | Ширина окна | auto |
 | `data-lm-height` | Высота окна | auto |
 | `data-lm-drag-to-close` | Закрытие перетаскиванием | `true` |
@@ -137,9 +181,14 @@ const modal = await LightModal.open('video.mp4', { theme: 'dark' });
 | `data-lm-loop` | Зацикливание галереи | `false` |
 | `data-lm-gallery-nav` | Кнопки prev/next в галерее | `true` |
 | `data-lm-gallery-swipe` | Свайп влево/вправо в галерее | `true` |
+| `data-lm-toolbar` | Плавающий тулбар внутри `.lm-content` | `false` |
+| `data-lm-zoom` | Зум изображений (кнопки, колесо, pinch, double-click) | `false` |
+| `data-lm-fullscreen` | Кнопка fullscreen в тулбаре | `false` |
 | `data-lm-ajax-selector` | CSS-селектор для извлечения части HTML-ответа (AJAX) | `null` |
 | `data-lm-idle` | Время до idle-режима (мс) | `3000` |
+| `data-lm-close-position` | Позиция кнопки закрытия: `static`, `absolute`, `fixed` | auto |
 | `data-spring-bottom-sheet` | Открыть как bottom sheet снизу экрана со spring-анимацией | `false` |
+| `data-tap-bar-move` | Телепортировать tap-bar внутрь bottom sheet: `true` или CSS-селектор | `false` |
 | `data-custom-background` | CSS-цвет фона окна (`#fff`, `rgba(...)`, etc.) | — |
 
 > Примечание: все `data-lm-*` автоматически мапятся в опции. Например, `data-lm-close-on-backdrop` → `closeOnBackdrop`.
@@ -154,6 +203,7 @@ LightModal.open('content', {
 
   // Управление
   closeButton: true,      // Кнопка закрытия
+  closePosition: null,    // static | absolute | fixed | null (auto)
   closeOnBackdrop: true,  // Клик по фону закрывает
   closeOnEsc: true,       // Escape закрывает
   closeExisting: false,   // Закрыть другие модалки перед открытием
@@ -164,6 +214,7 @@ LightModal.open('content', {
   loop: false,            // Зацикливание галереи
 
   // Анимация
+  openSpeed: 366,         // Скорость открытия (мс); после неё включается скролл слайда
   closeSpeed: 366,        // Скорость закрытия (мс)
 
   // Функциональность
@@ -179,6 +230,17 @@ LightModal.open('content', {
   width: null,            // число (px) или строка ('80vw')
   height: null,
 
+  // Toolbar + zoom + fullscreen
+  toolbar: false,         // плавающий dock внутри .lm-content.has-toolbar
+  toolbarAbsolute: true,  // true — absolute снизу карточки; false — в потоке
+  toolbarDisplay: null,   // null = auto; или { left, middle, right }
+  toolbarItems: null,     // legacy: плоский список → middle
+  zoom: false,            // зум изображений
+  zoomMin: 1,
+  zoomMax: 4,
+  zoomStep: 0.5,
+  fullscreen: false,      // кнопка fullscreen в тулбаре
+
   // Шаблоны (HTML-строки)
   spinnerTpl: '<div class="lm-spinner"></div>',
   errorTpl: '<div class="lm-error">{{message}}</div>', // {{message}} — плейсхолдер
@@ -188,6 +250,7 @@ LightModal.open('content', {
 
   // Bottom sheet
   bottomSheet: false,      // открыть как нижний лист (аналог data-spring-bottom-sheet)
+  tapBarMove: false,       // true | CSS-селектор — телепорт tap-bar в sheet (только с bottomSheet)
 
   // Кастомный фон
   customBackground: null,  // CSS-цвет, напр. '#1a1a2e' или 'rgba(0,0,0,0.8)'
@@ -296,8 +359,8 @@ window.lenisInstance = myLenisInstance;
 ```css
 :root {
   /* Backdrop */
-  --lm-backdrop-bg: transparent;
-  --lm-backdrop-blur: 8px;
+  --lm-backdrop-bg: rgba(182, 187, 198, 0.8);
+  --lm-backdrop-blur: 4px;
 
   /* Анимация */
   --lm-duration: 366ms;
@@ -318,6 +381,8 @@ window.lenisInstance = myLenisInstance;
 
   /* Контент */
   --lm-content-padding: 2rem;
+  --lm-max-width: min(90vw, 1200px);
+  --lm-max-height: none;
 
   /* Caption */
   --lm-caption-color: #666;
@@ -327,8 +392,20 @@ window.lenisInstance = myLenisInstance;
   --lm-spinner-color-1: rgba(0, 0, 0, 0.1);
   --lm-spinner-color-2: rgba(0, 0, 0, 0.8);
 
+  /* Toolbar dock */
+  --lm-toolbar-bg: rgba(255, 255, 255, 0.9);
+  --lm-toolbar-border: rgba(0, 0, 0, 0.08);
+  --lm-toolbar-shadow: 0 10px 40px rgba(0, 0, 0, 0.16);
+  --lm-toolbar-blur: 16px;
+  --lm-toolbar-btn-size: 36px;
+  --lm-toolbar-btn-color: #333;
+  --lm-toolbar-counter-color: #555;
+
   /* z-index */
   --lm-z-index: 1050;
+
+  /* Bottom sheet + tapBarMove (задаётся автоматически при телепорте) */
+  --lm-tap-bar-height: 0px;
 }
 ```
 
@@ -508,6 +585,181 @@ LightModal.open('#second-modal', { closeExisting: true });
 LightModal.open('#overlay-modal');
 ```
 
+### Bottom Sheet
+
+Нижняя шторка с spring-анимацией. Контент скроллится внутри панели. Свайп **вниз** закрывает (когда контент докручен до верха); свайп вверх не двигает sheet. Также закрытие — backdrop, Escape или API.
+
+```html
+<a href="#my-sheet" data-lightmodal data-spring-bottom-sheet="true">
+  Открыть sheet
+</a>
+
+<template id="my-sheet">
+  <div class="inline-content">
+    <h2>Заголовок</h2>
+    <p>Длинный контент…</p>
+  </div>
+</template>
+```
+
+```javascript
+LightModal.open('#my-sheet', { bottomSheet: true });
+```
+
+#### Tap-bar teleport (`tapBarMove`)
+
+Если на странице есть фиксированная нижняя навигация (мобильный tab-bar), её можно перенести **внутрь** открытого sheet — панель остаётся закреплённой внизу шторки, контент скроллится над ней. При закрытии элемент возвращается на исходное место в DOM.
+
+По умолчанию при `tapBarMove: true` ищется `[data-lm-tap-bar]` или `.demo-tapbar`. Можно передать свой селектор.
+
+```html
+<!-- Навигация на странице -->
+<nav class="app-tabbar" data-lm-tap-bar>
+  <a href="#section-a">A</a>
+  <a href="#section-b">B</a>
+</nav>
+
+<!-- Sheet с телепортом tap-bar -->
+<a href="#sheet-content"
+   data-lightmodal
+   data-spring-bottom-sheet="true"
+   data-tap-bar-move="true">
+  Открыть
+</a>
+```
+
+```javascript
+LightModal.open('#sheet-content', {
+  bottomSheet: true,
+  tapBarMove: true          // или '.app-tabbar'
+});
+```
+
+Поведение:
+
+- tap-bar добавляется в конец `.lm-content-wrapper` с классом `lm-tap-bar-moved`
+- высота панели записывается в CSS-переменную `--lm-tap-bar-height` (отступ у скроллируемого контента)
+- на `body` вешается класс `lm-tap-bar-teleported` (удобно для сброса `padding-bottom` страницы)
+- клик по якорной ссылке внутри tap-bar закрывает sheet и плавно скроллит к секции
+
+> **Важно:** у переносимого элемента должны быть свои стили для состояния `.lm-tap-bar-moved` (в демо — отдельный блок в `index.html`). Библиотека задаёт позиционирование внутри sheet; внешний вид — на стороне проекта.
+
+### Toolbar + Zoom + Fullscreen
+
+Плавающий dock внутри карточки (`.lm-content.has-toolbar`), не на всём viewport.
+
+```html
+<a href="photo.jpg"
+   data-lightmodal
+   data-gallery="album"
+   data-lm-toolbar="true"
+   data-lm-zoom="true"
+   data-lm-fullscreen="true">
+  Открыть
+</a>
+```
+
+```javascript
+LightModal.open('photo.jpg', {
+  toolbar: true,
+  zoom: true,
+  fullscreen: true,
+});
+```
+
+**Структура DOM** (при `toolbar: true`):
+
+```html
+<div class="lm-content has-toolbar">
+  <!-- галерея: стрелки по бокам карточки -->
+  <ul class="lm-nav-group" aria-label="Gallery navigation">
+    <li class="lm-nav-item">
+      <button class="lm-nav-btn lm-nav-prev" type="button">…</button>
+    </li>
+    <li class="lm-nav-item">
+      <button class="lm-nav-btn lm-nav-next" type="button">…</button>
+    </li>
+  </ul>
+
+  <nav class="lm-toolbar is-absolute" aria-label="Controls">
+    <ul class="lm-toolbar-group lm-toolbar-group--start">…</ul>
+    <ul class="lm-toolbar-group lm-toolbar-group--tools">…</ul>
+    <ul class="lm-toolbar-group lm-toolbar-group--actions">…</ul>
+  </nav>
+
+  <img>…</img>
+</div>
+```
+
+Без `toolbar` стрелки галереи по-прежнему вешаются на `.lm-container`.
+
+**Состав тулбара** (`toolbarDisplay`):
+
+| Колонка | Класс | По умолчанию (auto) |
+|---------|-------|---------------------|
+| `left` | `--start` | `counter` (только галерея) |
+| `middle` | `--tools` | `zoomIn`, `zoomOut`, `toggle1to1`, `reset` (если `zoom: true`) |
+| `right` | `--actions` | `fullscreen` (если включён), `close` |
+
+Доступные элементы: `counter`, `prev`, `next`, `close`, `fullscreen`, `zoomIn`, `zoomOut`, `toggle1to1`, `reset`, `rotateCCW`, `rotateCW`, `flipX`, `flipY`.
+
+```javascript
+LightModal.open(items, {
+  toolbar: true,
+  zoom: true,
+  toolbarDisplay: {
+    left: ['counter'],
+    middle: ['zoomIn', 'zoomOut', 'rotateCCW', 'rotateCW', 'flipX', 'flipY', 'reset'],
+    right: ['fullscreen', 'close'],
+  },
+});
+```
+
+**Клавиши:** `←` / `→` — навигация, `+` / `-` — зум, `0` — сброс, `f` — fullscreen, `Escape` — закрытие.
+
+В idle-режиме тулбар и `.lm-nav-group` скрываются, появляются при наведении.
+
+### Темы / анимации (`mainClass`)
+
+Готовые классы анимации карточки:
+
+| Класс | Эффект |
+|-------|--------|
+| `lm-zoom-in` | масштаб от `0.3` |
+| `lm-slide-up` | выезд снизу |
+| `lm-fade` | только fade (без transform) |
+
+```html
+<a href="photo.jpg"
+   data-lightmodal
+   data-lm-theme="dark"
+   data-lm-main-class="lm-zoom-in">
+  Dark + zoom-in
+</a>
+```
+
+```javascript
+LightModal.open('photo.jpg', {
+  theme: 'light',
+  mainClass: 'lm-slide-up',
+});
+```
+
+В режиме `has-html` анимируется карточка `.lm-content`, а не весь viewport-слайд — скроллбар не мелькает во время transition.
+
+### HTML slide mode
+
+Для всего контента, кроме bottom sheet, LightModal включает режим **HTML slide**:
+
+- `.lm-content-wrapper.has-html` — прозрачный слайд на весь viewport
+- `.lm-content` — карточка (для inline/AJAX — `.has-inline-content`, растёт по высоте)
+- анимация открытия/закрытия — только у карточки
+- во время анимации `overflow: hidden`; после `openSpeed` контейнер получает `.is-ready` и слайд становится прокручиваемым (`overflow: auto`) — удобно при маленькой высоте окна
+- клик по backdrop (вне карточки) закрывает модалку
+- при `toolbar: true` тулбар и стрелки галереи живут внутри `.lm-content.has-toolbar`
+
+Bottom sheet использует **отдельный** layout со скроллом внутри шторки, без `has-html`.
+
 ### Интеграция со сторонними модулями
 
 ```javascript
@@ -523,11 +775,12 @@ document.addEventListener('lightmodal:close', () => {
 
 ## 🖱️ Drag-to-close
 
-- **Вниз** — свайп вниз закрывает (классика мобильных bottom-sheet)
+- **Вниз** — свайп вниз закрывает обычную модалку
 - **Вверх** — свайп вверх закрывает
 - **Горизонталь** — не закрывает, не мешает скроллу
 - **Рабочая зона** — весь контейнер включая backdrop (удобно для видео/изображений)
 - **Мышь** — работает drag на десктопе, cursor: grab на backdrop
+- **Bottom sheet** — свайп **вниз** закрывает (когда контент наверху); свайп вверх не двигает sheet. Spring snap-back при незакрывающем жесте
 
 ```javascript
 LightModal.open('image.jpg', {
@@ -542,7 +795,7 @@ LightModal.open('image.jpg', {
 - Восстановление фокуса на триггере после закрытия
 - `prefers-reduced-motion` — анимации отключаются
 - `prefers-contrast: high` — усиленные границы и контраст
-- Keyboard: `Escape` — закрытие, `Tab`/`Shift+Tab` — навигация внутри
+- Keyboard: `Escape` — закрытие, `Tab`/`Shift+Tab` — фокус внутри, `←`/`→` — галерея, `+`/`-`/`0` — зум, `f` — fullscreen
 
 ## 📋 Поддерживаемые типы контента
 

@@ -291,7 +291,7 @@ summary {
 	font-size: 14px;
 }
 
-/* Demo-only: hide inline modal content on the page, but show inside LightModal */
+/* Demo-only: legacy inline div на странице (без <template>) */
 .inline-content {
 	display: none !important;
 }

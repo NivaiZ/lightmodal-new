@@ -1,328 +1,411 @@
 <!doctype html>
 <html lang="ru">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>LightModal — Showcase</title>
 
-    <link rel="stylesheet" href="lightmodal.min.css" />
-    <link rel="stylesheet" href="base.css" />
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>LightModal — Showcase</title>
 
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&display=swap"
-      rel="stylesheet"
-    />
+  <link rel="stylesheet" href="lightmodal.min.css" />
+  <link rel="stylesheet" href="base.css" />
 
-    <!-- Favicons -->
-    <link rel="icon" type="image/png" href="assets/favicon/favicon-96x96.png" sizes="96x96" />
-    <link rel="icon" type="image/svg+xml" href="assets/favicon/favicon.svg" />
-    <link rel="shortcut icon" href="assets/favicon/favicon.ico" />
-    <link rel="apple-touch-icon" sizes="180x180" href="assets/favicon/apple-touch-icon.png" />
-    <meta name="apple-mobile-web-app-title" content="LightModal" />
-    <link rel="manifest" href="assets/favicon/site.webmanifest" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&display=swap"
+    rel="stylesheet" />
 
-    <!-- Lenis CSS (optional) -->
-    <link rel="stylesheet" href="https://unpkg.com/lenis@1.3.23/dist/lenis.css" />
-    <style>
+  <!-- Favicons -->
+  <link rel="icon" type="image/png" href="assets/favicon/favicon-96x96.png" sizes="96x96" />
+  <link rel="icon" type="image/svg+xml" href="assets/favicon/favicon.svg" />
+  <link rel="shortcut icon" href="assets/favicon/favicon.ico" />
+  <link rel="apple-touch-icon" sizes="180x180" href="assets/favicon/apple-touch-icon.png" />
+  <meta name="apple-mobile-web-app-title" content="LightModal" />
+  <link rel="manifest" href="assets/favicon/site.webmanifest" />
+
+  <!-- Lenis CSS (optional) -->
+  <link rel="stylesheet" href="https://unpkg.com/lenis@1.3.23/dist/lenis.css" />
+  <style>
+    .demo-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 16px;
+      margin-top: 16px;
+    }
+
+    @media (min-width: 860px) {
       .demo-grid {
-        display: grid;
-        grid-template-columns: 1fr;
-        gap: 16px;
-        margin-top: 16px;
+        grid-template-columns: 1fr 1fr;
+        align-items: start;
+      }
+    }
+
+    .demo-card {
+      border: 1px solid rgba(0, 0, 0, 0.08);
+      border-radius: 14px;
+      padding: 16px;
+      height: 100%;
+      background: rgba(255, 255, 255, 0.7);
+    }
+
+    .demo-card h2 {
+      font-size: 18px;
+      font-weight: 650;
+      margin: 0 0 10px;
+    }
+
+    .demo-card p {
+      margin: 0 0 12px;
+      opacity: 0.85;
+    }
+
+    .demo-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .demo-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1px solid rgba(0, 0, 0, 0.08);
+      background: rgba(255, 255, 255, 0.8);
+    }
+
+    .demo-link code {
+      font-size: 12px;
+      opacity: 0.8;
+    }
+
+    .demo-note {
+      font-size: 13px;
+      opacity: 0.75;
+      margin-top: 10px;
+    }
+
+    .gallery {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .gallery a {
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid rgba(0, 0, 0, 0.08);
+    }
+
+    .gallery img {
+      width: 100%;
+      height: 160px;
+      object-fit: cover;
+    }
+
+    .lm-demo-frame {
+      border: 1px solid rgba(0, 0, 0, 0.08);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    .lm-demo-frame iframe {
+      width: 100%;
+      height: 260px;
+      border: 0;
+      display: block;
+    }
+
+    .demo-card[id] {
+      scroll-margin-top: 1rem;
+    }
+
+    .demo-tapbar {
+      display: none;
+    }
+
+    @media (max-width: 767px) {
+      body {
+        padding-bottom: calc(4.25rem + env(safe-area-inset-bottom, 0px));
       }
 
-      @media (min-width: 860px) {
-        .demo-grid {
-          grid-template-columns: 1fr 1fr;
-          align-items: start;
-        }
+      body.lm-tap-bar-teleported {
+        padding-bottom: 2rem;
       }
 
-      .demo-card {
-        border: 1px solid rgba(0, 0, 0, 0.08);
-        border-radius: 14px;
-        padding: 16px;
-        background: rgba(255, 255, 255, 0.7);
-      }
-
-      .demo-card h2 {
-        font-size: 18px;
-        font-weight: 650;
-        margin: 0 0 10px;
-      }
-
-      .demo-card p {
-        margin: 0 0 12px;
-        opacity: 0.85;
-      }
-
-      .demo-row {
+      .demo-tapbar:not(.lm-tap-bar-moved) {
         display: flex;
-        flex-wrap: wrap;
-        gap: 10px;
-        align-items: center;
+        position: fixed;
+        left: 50%;
+        width: calc(100% - 70px);
+        transform: translateX(-50%);
+        bottom: 0;
+        z-index: 900;
+        gap: 4px;
+        padding: 8px 8px calc(8px + env(safe-area-inset-bottom, 0px));
+        overflow-x: auto;
+        border-radius: 10px 10px 0 0;
+        overscroll-behavior-x: contain;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+        background: rgba(255, 255, 255, 0.92);
+        border-top: 1px solid rgba(0, 0, 0, 0.08);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
       }
 
-      .demo-link {
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        padding: 10px 12px;
-        border-radius: 10px;
-        border: 1px solid rgba(0, 0, 0, 0.08);
-        background: rgba(255, 255, 255, 0.8);
+      .demo-tapbar.lm-tap-bar-moved {
+        display: flex;
+        gap: 4px;
+        padding: 8px 8px calc(8px + env(safe-area-inset-bottom, 0px));
+        overflow-x: auto;
+        border-radius: 0;
+        overscroll-behavior-x: contain;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+        background: rgba(255, 255, 255, 0.92);
+        border-top: 1px solid rgba(0, 0, 0, 0.08);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
       }
 
-      .demo-link code {
+      .demo-tapbar::-webkit-scrollbar {
+        display: none;
+      }
+
+      .demo-tapbar__link {
+        flex: 0 0 auto;
+        padding: 8px 12px;
+        border-radius: 999px;
         font-size: 12px;
-        opacity: 0.8;
+        font-weight: 600;
+        line-height: 1.2;
+        white-space: nowrap;
+        color: rgba(0, 0, 0, 0.65);
+        background: rgba(0, 0, 0, 0.04);
+        transition: background-color 0.15s ease, color 0.15s ease;
       }
 
-      .demo-note {
-        font-size: 13px;
-        opacity: 0.75;
-        margin-top: 10px;
+      .demo-tapbar__link:hover,
+      .demo-tapbar__link.is-active {
+        color: #fff;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
       }
 
-      .gallery {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 10px;
+      .demo-tapbar__link:focus-visible {
+        outline: 2px solid #667eea;
+        outline-offset: 2px;
       }
+    }
+  </style>
+</head>
 
-      .gallery a {
-        border-radius: 12px;
-        overflow: hidden;
-        border: 1px solid rgba(0, 0, 0, 0.08);
-      }
+<body>
+  <div class="container">
+    <h1>LightModal — Showcase</h1>
+    <p>
+      Всё в одном: <strong>dialog fallback</strong>, inline, media, gallery, drag-to-close, idle UI, a11y, AJAX/JSON,
+      события и API.
+    </p>
 
-      .gallery img {
-        width: 100%;
-        height: 160px;
-        object-fit: cover;
-      }
+    <div class="demo-grid">
+      <section class="demo-card" id="demo-inline">
+        <h2>Inline (перенос DOM внутрь модалки)</h2>
+        <p>Контент живой: формы, фокус, скролл внутри. Разметка в <code>&lt;template&gt;</code> — не видна на странице.</p>
+        <div class="demo-row">
+          <button class="demo-button" onclick="openModal('inline-simple', { closePosition: 'static' })">Простой</button>
+          <button class="demo-button" onclick="openModal('inline-form', { closePosition: 'static' })">Форма</button>
+          <button class="demo-button" onclick="openModal('inline-long', { closePosition: 'static' })">Длинный контент</button>
+        </div>
+        <div class="demo-note">Подсказка: попробуй Tab/Shift+Tab, ESC, клик по backdrop, а на touch — drag-to-close.
+        </div>
+      </section>
 
-      .lm-demo-frame {
-        border: 1px solid rgba(0, 0, 0, 0.08);
-        border-radius: 12px;
-        overflow: hidden;
-      }
+      <section class="demo-card" id="demo-api">
+        <h2>API (JS)</h2>
+        <p>Открытие по кнопке, опции, closeExisting и события.</p>
+        <div class="demo-row">
+          <button class="demo-button" id="js-open-image">Открыть картинку (JS)</button>
+          <button class="demo-button" id="js-open-stack">Открыть поверх (stack)</button>
+          <button class="demo-button" id="js-open-replace">closeExisting</button>
+        </div>
+        <div class="demo-note">
+          События: <code>lightmodal:open</code> / <code>lightmodal:close</code> (с <code>detail.instance</code>).
+        </div>
+      </section>
 
-      .lm-demo-frame iframe {
-        width: 100%;
-        height: 260px;
-        border: 0;
-        display: block;
-      }
-    </style>
-  </head>
+      <section class="demo-card" id="demo-gallery">
+        <h2>Галерея</h2>
+        <p>Группировка по <code>data-gallery</code>, подписи, счётчик, навигация, swipe.</p>
 
-  <body>
-    <div class="container">
-      <h1>LightModal — Showcase</h1>
-      <p>
-        Всё в одном: <strong>dialog fallback</strong>, inline, media, gallery, drag-to-close, idle UI, a11y, AJAX/JSON,
-        события и API.
-      </p>
+        <div class="gallery">
+          <a href="assets/nasa/PIA01341.jpg" data-lightmodal data-lm-close-position="absolute" data-gallery="nature" data-caption="PIA01341">
+            <img src="assets/nasa/PIA01341.jpg" alt="PIA01341" />
+          </a>
 
-      <div class="demo-grid">
-        <section class="demo-card">
-          <h2>Inline (перенос DOM внутрь модалки)</h2>
-          <p>Контент живой: формы, фокус, скролл внутри.</p>
-          <div class="demo-row">
-            <button class="demo-button" onclick="openModal('inline-simple')">Простой</button>
-            <button class="demo-button" onclick="openModal('inline-form')">Форма</button>
-            <button class="demo-button" onclick="openModal('inline-long')">Длинный контент</button>
-          </div>
-          <div class="demo-note">Подсказка: попробуй Tab/Shift+Tab, ESC, клик по backdrop, а на touch — drag-to-close.</div>
-        </section>
+          <a href="assets/nasa/PIA17283.jpg" data-lightmodal data-lm-close-position="absolute" data-gallery="nature" data-caption="PIA17283">
+            <img src="assets/nasa/PIA17283.jpg" alt="PIA17283" />
+          </a>
 
-        <section class="demo-card">
-          <h2>API (JS)</h2>
-          <p>Открытие по кнопке, опции, closeExisting и события.</p>
-          <div class="demo-row">
-            <button class="demo-button" id="js-open-image">Открыть картинку (JS)</button>
-            <button class="demo-button" id="js-open-stack">Открыть поверх (stack)</button>
-            <button class="demo-button" id="js-open-replace">closeExisting</button>
-          </div>
-          <div class="demo-note">
-            События: <code>lightmodal:open</code> / <code>lightmodal:close</code> (с <code>detail.instance</code>).
-          </div>
-        </section>
+          <a href="assets/nasa/PIA25691.jpg" data-lightmodal data-lm-close-position="absolute" data-gallery="nature" data-caption="PIA25691">
+            <img src="assets/nasa/PIA25691.jpg" alt="PIA25691" />
+          </a>
 
-        <section class="demo-card">
-          <h2>Галерея</h2>
-          <p>Группировка по <code>data-gallery</code>, подписи, счётчик, навигация, swipe.</p>
+          <a href="assets/nasa/PIA00013.jpg" data-lightmodal data-lm-close-position="absolute" data-gallery="nature" data-caption="PIA00013">
+            <img src="assets/nasa/PIA00013.jpg" alt="PIA00013" />
+          </a>
+        </div>
 
-          <div class="gallery">
-            <a href="assets/nasa/PIA01341.jpg" data-lightmodal data-gallery="nature" data-caption="PIA01341">
-              <img src="assets/nasa/PIA01341.jpg" alt="PIA01341" />
-            </a>
+        <div class="demo-note">Клавиатура: ← →, Escape. Опции: <code>data-lm-loop</code>, <code>data-lm-idle</code>.
+        </div>
+      </section>
 
-            <a href="assets/nasa/PIA17283.jpg" data-lightmodal data-gallery="nature" data-caption="PIA17283">
-              <img src="assets/nasa/PIA17283.jpg" alt="PIA17283" />
-            </a>
+      <section class="demo-card" id="demo-video">
+        <h2>Видео / iframe</h2>
+        <p>YouTube/Vimeo/Rutube/VK распознаются по URL, иначе — iframe.</p>
+        <div class="demo-row">
+          <a class="demo-link" href="https://www.youtube.com/watch?v=6v4S0mRSnO4" data-lightmodal data-lm-close-position="absolute" data-lm-width="95vw"
+            data-lm-height="70vh">
+            YouTube <code>auto</code>
+          </a>
+          <a class="demo-link" href="https://vimeo.com/76979871" data-lightmodal data-lm-close-position="absolute" data-lm-width="95vw"
+            data-lm-height="70vh">
+            Vimeo <code>auto</code>
+          </a>
+          <a class="demo-link" href="https://example.com" data-lightmodal data-lm-close-position="absolute" data-type="iframe" data-lm-width="90vw"
+            data-lm-height="70vh">
+            Iframe <code>type=iframe</code>
+          </a>
+        </div>
+        <div class="demo-note">Для iframe лучше задавать ширину/высоту через
+          <code>data-lm-width</code>/<code>data-lm-height</code>.</div>
+      </section>
 
-            <a href="assets/nasa/PIA25691.jpg" data-lightmodal data-gallery="nature" data-caption="PIA25691">
-              <img src="assets/nasa/PIA25691.jpg" alt="PIA25691" />
-            </a>
+      <section class="demo-card" id="demo-ajax">
+        <h2>AJAX (HTML)</h2>
+        <p>Загрузка HTML, вырезание фрагмента по селектору.</p>
+        <div class="demo-row">
+          <a class="demo-link" href="demo/ajax.html" data-lightmodal data-lm-close-position="static" data-type="ajax" data-lm-width="720"
+            data-lm-theme="light" data-lm-close-on-backdrop="true">
+            Открыть HTML <code>type=ajax</code>
+          </a>
+          <a class="demo-link" href="demo/ajax.html" data-lightmodal data-lm-close-position="static" data-type="ajax" data-lm-width="720"
+            data-lm-theme="light" data-lm-ajax-selector=".lm-ajax-fragment">
+            Только фрагмент <code>ajaxSelector</code>
+          </a>
+        </div>
+        <div class="demo-note">Есть базовая санация ответа (не замена DOMPurify для недоверенных источников).</div>
+      </section>
 
-            <a href="assets/nasa/PIA00013.jpg" data-lightmodal data-gallery="nature" data-caption="PIA00013">
-              <img src="assets/nasa/PIA00013.jpg" alt="PIA00013" />
-            </a>
-          </div>
+      <section class="demo-card" id="demo-json">
+        <h2>JSON + ajaxSuccess</h2>
+        <p>Рендерим JSON в красивую карточку (или покажем <code>&lt;pre&gt;</code> по умолчанию).</p>
+        <div class="demo-row">
+          <button class="demo-button" id="js-open-json">Открыть JSON (карточка)</button>
+          <a class="demo-link" href="demo/product.json" data-lightmodal data-lm-close-position="static" data-type="json" data-lm-width="720">
+            JSON по умолчанию <code>&lt;pre&gt;</code>
+          </a>
+        </div>
+      </section>
 
-          <div class="demo-note">Клавиатура: ← →, Escape. Опции: <code>data-lm-loop</code>, <code>data-lm-idle</code>.</div>
-        </section>
+      <section class="demo-card" id="demo-sheet">
+        <h2>Bottom Sheet (Spring)</h2>
+        <p>Выезжает снизу, spring-bounce при snap-back, native scroll внутри. Свайп вниз закрывает.</p>
+        <div class="demo-row">
+          <a class="demo-link" href="#bs-simple" data-lightmodal data-lm-close-position="absolute" data-spring-bottom-sheet="true" data-tap-bar-move="true">
+            Простой
+          </a>
+          <a class="demo-link" href="#bs-long" data-lightmodal data-lm-close-position="absolute" data-spring-bottom-sheet="true" data-tap-bar-move="true">
+            Длинный (скролл)
+          </a>
+          <a class="demo-link" href="#bs-form" data-lightmodal data-lm-close-position="absolute" data-spring-bottom-sheet="true" data-tap-bar-move="true">
+            Форма
+          </a>
+        </div>
+        <div class="demo-note">
+          <code>data-spring-bottom-sheet="true"</code> + <code>data-tap-bar-move="true"</code> — tap-bar
+          телепортируется в sheet (как Vue teleport). Закрытие: свайп вниз / backdrop / API.
+        </div>
+      </section>
 
-        <section class="demo-card">
-          <h2>Видео / iframe</h2>
-          <p>YouTube/Vimeo/Rutube/VK распознаются по URL, иначе — iframe.</p>
-          <div class="demo-row">
-            <a class="demo-link" href="https://www.youtube.com/watch?v=6v4S0mRSnO4" data-lightmodal data-lm-width="95vw" data-lm-height="70vh">
-              YouTube <code>auto</code>
-            </a>
-            <a class="demo-link" href="https://vimeo.com/76979871" data-lightmodal data-lm-width="95vw" data-lm-height="70vh">
-              Vimeo <code>auto</code>
-            </a>
-            <a class="demo-link" href="https://example.com" data-lightmodal data-type="iframe" data-lm-width="90vw" data-lm-height="70vh">
-              Iframe <code>type=iframe</code>
-            </a>
-          </div>
-          <div class="demo-note">Для iframe лучше задавать ширину/высоту через <code>data-lm-width</code>/<code>data-lm-height</code>.</div>
-        </section>
+      <section class="demo-card" id="demo-toolbar">
+        <h2>Toolbar + Zoom + Fullscreen</h2>
+        <p>Плавающий dock снизу: счётчик, зум и сброс, fullscreen и закрытие. Стрелки галереи — по бокам.</p>
+        <div class="demo-row">
+          <a class="demo-link" href="assets/nasa/PIA01341.jpg" data-lightmodal data-lm-close-position="absolute" data-lm-toolbar="true"
+            data-lm-zoom="true" data-lm-fullscreen="true">
+            Фото + Toolbar
+          </a>
+          <a class="demo-link" href="assets/nasa/PIA01341.jpg" data-lightmodal data-lm-close-position="absolute" data-gallery="toolbar-gallery"
+            data-lm-toolbar="true" data-lm-zoom="true" data-lm-fullscreen="true">
+            Галерея 1
+          </a>
+          <a class="demo-link" href="assets/nasa/PIA17283.jpg" data-lightmodal data-lm-close-position="absolute" data-gallery="toolbar-gallery"
+            data-lm-toolbar="true" data-lm-zoom="true" data-lm-fullscreen="true">
+            Галерея 2
+          </a>
+          <a class="demo-link" href="assets/nasa/PIA25691.jpg" data-lightmodal data-lm-close-position="absolute" data-gallery="toolbar-gallery"
+            data-lm-toolbar="true" data-lm-zoom="true" data-lm-fullscreen="true">
+            Галерея 3
+          </a>
+        </div>
+        <div class="demo-note">
+          Опции: <code>toolbar: true</code>, <code>zoom: true</code>, <code>fullscreen: true</code>.
+          Тулбар: <code>toolbarDisplay: { left, middle, right }</code> или авто (counter · zoom · fullscreen/close).
+          Поворот/отражение — через <code>toolbarDisplay.middle</code>:
+          <code>rotateCCW</code>, <code>rotateCW</code>, <code>flipX</code>, <code>flipY</code>.
+          Клавиши: <code>←/→</code> nav, <code>+/-</code> zoom, <code>0</code> reset, <code>f</code> fullscreen.
+        </div>
+      </section>
 
-        <section class="demo-card">
-          <h2>AJAX (HTML)</h2>
-          <p>Загрузка HTML, вырезание фрагмента по селектору.</p>
-          <div class="demo-row">
-            <a
-              class="demo-link"
-              href="demo/ajax.html"
-              data-lightmodal
-              data-type="ajax"
-              data-lm-width="720"
-              data-lm-theme="light"
-              data-lm-close-on-backdrop="true"
-            >
-              Открыть HTML <code>type=ajax</code>
-            </a>
-            <a
-              class="demo-link"
-              href="demo/ajax.html"
-              data-lightmodal
-              data-type="ajax"
-              data-lm-width="720"
-              data-lm-theme="light"
-              data-lm-ajax-selector=".lm-ajax-fragment"
-            >
-              Только фрагмент <code>ajaxSelector</code>
-            </a>
-          </div>
-          <div class="demo-note">Есть базовая санация ответа (не замена DOMPurify для недоверенных источников).</div>
-        </section>
-
-        <section class="demo-card">
-          <h2>JSON + ajaxSuccess</h2>
-          <p>Рендерим JSON в красивую карточку (или покажем <code>&lt;pre&gt;</code> по умолчанию).</p>
-          <div class="demo-row">
-            <button class="demo-button" id="js-open-json">Открыть JSON (карточка)</button>
-            <a class="demo-link" href="demo/product.json" data-lightmodal data-type="json" data-lm-width="720">
-              JSON по умолчанию <code>&lt;pre&gt;</code>
-            </a>
-          </div>
-        </section>
-
-        <section class="demo-card">
-          <h2>Bottom Sheet (Spring)</h2>
-          <p>Выезжает снизу, spring-bounce при snap-back, native scroll внутри, drag вниз — закрытие.</p>
-          <div class="demo-row">
-            <a class="demo-link" href="#bs-simple" data-lightmodal data-spring-bottom-sheet="true">
-              Простой
-            </a>
-            <a class="demo-link" href="#bs-long" data-lightmodal data-spring-bottom-sheet="true">
-              Длинный (скролл)
-            </a>
-            <a class="demo-link" href="#bs-form" data-lightmodal data-spring-bottom-sheet="true">
-              Форма
-            </a>
-          </div>
-          <div class="demo-note">
-            Атрибут <code>data-spring-bottom-sheet="true"</code> на триггере. Или опция <code>bottomSheet: true</code> в JS.
-          </div>
-        </section>
-
-        <section class="demo-card">
-          <h2>Toolbar + Zoom + Fullscreen</h2>
-          <p>Тулбар с кнопками nav/zoom/fullscreen. Зум через колёсико, двойной клик, pinch на мобиле.</p>
-          <div class="demo-row">
-            <a class="demo-link" href="assets/nasa/PIA01341.jpg" data-lightmodal
-              data-lm-toolbar="true"
-              data-lm-zoom="true"
-              data-lm-fullscreen="true">
-              Фото + Toolbar
-            </a>
-            <a class="demo-link" href="assets/nasa/PIA01341.jpg"
-              data-lightmodal
-              data-gallery="toolbar-gallery"
-              data-lm-toolbar="true"
-              data-lm-zoom="true"
-              data-lm-fullscreen="true">
-              Галерея 1
-            </a>
-            <a class="demo-link" href="assets/nasa/PIA17283.jpg"
-              data-lightmodal
-              data-gallery="toolbar-gallery"
-              data-lm-toolbar="true"
-              data-lm-zoom="true"
-              data-lm-fullscreen="true">
-              Галерея 2
-            </a>
-            <a class="demo-link" href="assets/nasa/PIA25691.jpg"
-              data-lightmodal
-              data-gallery="toolbar-gallery"
-              data-lm-toolbar="true"
-              data-lm-zoom="true"
-              data-lm-fullscreen="true">
-              Галерея 3
-            </a>
-          </div>
-          <div class="demo-note">
-            Опции: <code>toolbar: true</code>, <code>zoom: true</code>, <code>fullscreen: true</code>. Клавиши: <code>←/→</code> nav, <code>+/-</code> zoom, <code>0</code> reset, <code>f</code> fullscreen.
-          </div>
-        </section>
-
-        <section class="demo-card">
-          <h2>Темы / анимации</h2>
-          <p>Тема задаётся на контейнере через <code>data-theme</code>.</p>
-          <div class="demo-row">
-            <a class="demo-link" href="assets/nasa/PIA01341.jpg" data-lightmodal data-lm-theme="dark" data-lm-main-class="lm-zoom-in">
-              Dark + zoom-in
-            </a>
-            <a class="demo-link" href="assets/nasa/PIA17283.jpg" data-lightmodal data-lm-theme="light" data-lm-main-class="lm-slide-up">
-              Light + slide-up
-            </a>
-            <a class="demo-link" href="assets/nasa/PIA25691.jpg" data-lightmodal data-lm-theme="auto" data-lm-main-class="lm-fade">
-              Auto + fade
-            </a>
-          </div>
-          <div class="demo-note">
-            Можно менять внешний вид через CSS-переменные <code>--lm-*</code> (см. <code>readme.md</code>).
-          </div>
-        </section>
-      </div>
+      <section class="demo-card" id="demo-themes">
+        <h2>Темы / анимации</h2>
+        <p>Тема задаётся на контейнере через <code>data-theme</code>.</p>
+        <div class="demo-row">
+          <a class="demo-link" href="assets/nasa/PIA01341.jpg" data-lightmodal data-lm-close-position="absolute" data-lm-theme="dark"
+            data-lm-main-class="lm-zoom-in">
+            Dark + zoom-in
+          </a>
+          <a class="demo-link" href="assets/nasa/PIA17283.jpg" data-lightmodal data-lm-close-position="absolute" data-lm-theme="light"
+            data-lm-main-class="lm-slide-up">
+            Light + slide-up
+          </a>
+          <a class="demo-link" href="assets/nasa/PIA25691.jpg" data-lightmodal data-lm-close-position="absolute" data-lm-theme="auto"
+            data-lm-main-class="lm-fade">
+            Auto + fade
+          </a>
+        </div>
+        <div class="demo-note">
+          Можно менять внешний вид через CSS-переменные <code>--lm-*</code> (см. <code>readme.md</code>).
+        </div>
+      </section>
     </div>
+  </div>
 
-    <!-- Inline content (спрятан на странице демо через base.css) -->
-    <div id="inline-simple" class="inline-content">
+  <nav class="demo-tapbar" data-lm-tap-bar aria-label="Навигация по демо-блокам">
+    <a class="demo-tapbar__link" href="#demo-inline">Inline</a>
+    <a class="demo-tapbar__link" href="#demo-api">API</a>
+    <a class="demo-tapbar__link" href="#demo-gallery">Галерея</a>
+    <a class="demo-tapbar__link" href="#demo-video">Видео</a>
+    <a class="demo-tapbar__link" href="#demo-ajax">AJAX</a>
+    <a class="demo-tapbar__link" href="#demo-json">JSON</a>
+    <a class="demo-tapbar__link" href="#demo-sheet">Sheet</a>
+    <a class="demo-tapbar__link" href="#demo-toolbar">Toolbar</a>
+    <a class="demo-tapbar__link" href="#demo-themes">Темы</a>
+  </nav>
+
+  <!-- Inline / bottom sheet: контент в <template> — не рендерится на странице -->
+  <template id="inline-simple">
+    <div class="inline-content">
       <h3>Простой inline контент</h3>
       <p>Этот контент переносится в модалку как DOM-узел (не строка).</p>
       <p>Проверь: ESC / клик по фону / Tab navigation / возврат фокуса после закрытия.</p>
     </div>
+  </template>
 
-    <div id="inline-form" class="inline-content">
+  <template id="inline-form">
+    <div class="inline-content">
       <h3>Форма обратной связи</h3>
       <form class="demo-form" data-demo-form>
         <label>Имя:</label>
@@ -337,19 +420,23 @@
         <button type="submit">Отправить сообщение</button>
       </form>
     </div>
+  </template>
 
-    <div id="inline-form-sent" class="inline-content">
+  <template id="inline-form-sent">
+    <div class="inline-content">
       <h3>Сообщение отправлено</h3>
       <p style="margin: 0 0 12px; opacity: 0.85">
         Это демонстрация: по submit мы закрываем текущую модалку и открываем следующую.
       </p>
       <div style="display: flex; gap: 10px; flex-wrap: wrap">
         <button class="demo-button" type="button" onclick="closeModal()">Закрыть</button>
-        <button class="demo-button" type="button" onclick="openModal('inline-form')">Отправить ещё раз</button>
+        <button class="demo-button" type="button" onclick="openModal('inline-form', { closePosition: 'static' })">Отправить ещё раз</button>
       </div>
     </div>
+  </template>
 
-    <div id="inline-long" class="inline-content">
+  <template id="inline-long">
+    <div class="inline-content">
       <h3>Длинный прокручиваемый контент</h3>
       <p>Скролл должен быть внутри модалки, а фон — заблокирован.</p>
 
@@ -367,49 +454,66 @@
       <p>
         Ниже — просто много текста. Прокрути до конца и закрой модалку: позиция страницы снаружи должна сохраниться.
       </p>
-      <div style="height: 900px; border-radius: 12px; border: 1px dashed rgba(0,0,0,.2); margin: 12px 0; display:flex; align-items:center; justify-content:center;">
+      <div
+        style="height: 900px; border-radius: 12px; border: 1px dashed rgba(0,0,0,.2); margin: 12px 0; display:flex; align-items:center; justify-content:center;">
         <span style="opacity:.6">Зона прокрутки</span>
       </div>
       <p>Конец теста.</p>
     </div>
-    <!-- Bottom sheet content -->
-    <div id="bs-simple" class="inline-content">
-      <h3>Spring Bottom Sheet</h3>
-      <p>Выезжает снизу с spring-bounce. Свайп вниз закрывает, при незакрывающем свайпе — пружинит обратно.</p>
-      <p style="margin: 0;">Нажми на backdrop или потяни вниз чтобы закрыть.</p>
-    </div>
+  </template>
 
-    <div id="bs-long" class="inline-content">
+  <template id="bs-simple">
+    <div class="inline-content">
+      <h3>Spring Bottom Sheet</h3>
+      <p>Выезжает снизу с spring-bounce. Свайп вниз закрывает, если контент наверху.</p>
+      <p style="margin: 0;">Или клик по backdrop.</p>
+    </div>
+  </template>
+
+  <template id="bs-long">
+    <div class="inline-content">
       <h3>Bottom Sheet с длинным контентом</h3>
       <p>Скролл работает внутри шторки — drag-to-close не срабатывает пока контент не докручен до верха.</p>
-      <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco.</p>
-      <p>Pellentesque habitant morbi tristique senectus et netus et malesuada fames ac turpis egestas. Vestibulum tortor quam, feugiat vitae, ultricies eget, tempor sit amet, ante.</p>
-      <p>Donec eu libero sit amet quam egestas semper. Aenean ultricies mi vitae est. Mauris placerat eleifend leo. Quisque sit amet est et sapien ullamcorper pharetra.</p>
-      <p>Vestibulum erat wisi, condimentum sed, commodo vitae, ornare sit amet, wisi. Aenean fermentum, elit eget tincidunt condimentum, eros ipsum rutrum orci.</p>
-      <p>Praesent dapibus, neque id cursus faucibus, tortor neque egestas augue, eu vulputate magna eros eu erat. Aliquam erat volutpat.</p>
-      <p>Nam dui ligula, fringilla a, euismod sodales, sollicitudin vel, wisi. Morbi auctor lorem non justo. Nam lacus libero, pretium at, lobortis vitae.</p>
+      <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore
+        magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco.</p>
+      <p>Pellentesque habitant morbi tristique senectus et netus et malesuada fames ac turpis egestas. Vestibulum tortor
+        quam, feugiat vitae, ultricies eget, tempor sit amet, ante.</p>
+      <p>Donec eu libero sit amet quam egestas semper. Aenean ultricies mi vitae est. Mauris placerat eleifend leo.
+        Quisque sit amet est et sapien ullamcorper pharetra.</p>
+      <p>Vestibulum erat wisi, condimentum sed, commodo vitae, ornare sit amet, wisi. Aenean fermentum, elit eget
+        tincidunt condimentum, eros ipsum rutrum orci.</p>
+      <p>Praesent dapibus, neque id cursus faucibus, tortor neque egestas augue, eu vulputate magna eros eu erat. Aliquam
+        erat volutpat.</p>
+      <p>Nam dui ligula, fringilla a, euismod sodales, sollicitudin vel, wisi. Morbi auctor lorem non justo. Nam lacus
+        libero, pretium at, lobortis vitae.</p>
       <p style="margin: 0; opacity: 0.5; font-size: 13px;">— конец длинного контента —</p>
     </div>
+  </template>
 
-    <div id="bs-form" class="inline-content">
+  <template id="bs-form">
+    <div class="inline-content">
       <h3>Форма в Bottom Sheet</h3>
       <form style="display:flex; flex-direction:column; gap:12px;">
         <label style="display:flex; flex-direction:column; gap:4px; font-size:14px;">
           Имя
-          <input type="text" placeholder="Введите имя" style="padding:8px 12px; border:1px solid rgba(0,0,0,.15); border-radius:8px; font-size:14px;" />
+          <input type="text" placeholder="Введите имя"
+            style="padding:8px 12px; border:1px solid rgba(0,0,0,.15); border-radius:8px; font-size:14px;" />
         </label>
         <label style="display:flex; flex-direction:column; gap:4px; font-size:14px;">
           Email
-          <input type="email" placeholder="email@example.com" style="padding:8px 12px; border:1px solid rgba(0,0,0,.15); border-radius:8px; font-size:14px;" />
+          <input type="email" placeholder="email@example.com"
+            style="padding:8px 12px; border:1px solid rgba(0,0,0,.15); border-radius:8px; font-size:14px;" />
         </label>
         <button type="submit" class="demo-button" style="align-self:flex-start;">Отправить</button>
       </form>
     </div>
+  </template>
 
-    <!-- Lenis (optional) -->
-    <!-- <script src="https://unpkg.com/lenis@1.3.23/dist/lenis.min.js"></script> -->
+  <!-- Lenis (optional) -->
+  <!-- <script src="https://unpkg.com/lenis@1.3.23/dist/lenis.min.js"></script> -->
 
-    <script src="lightmodal.min.js"></script>
-    <script src="index.js" defer></script>
-  </body>
+  <script src="lightmodal.min.js"></script>
+  <script src="index.js" defer></script>
+</body>
+
 </html>
