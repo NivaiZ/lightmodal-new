@@ -86,24 +86,6 @@
       margin-top: 10px;
     }
 
-    .gallery {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 10px;
-    }
-
-    .gallery a {
-      border-radius: 12px;
-      overflow: hidden;
-      border: 1px solid rgba(0, 0, 0, 0.08);
-    }
-
-    .gallery img {
-      width: 100%;
-      height: 160px;
-      object-fit: cover;
-    }
-
     .lm-demo-frame {
       border: 1px solid rgba(0, 0, 0, 0.08);
       border-radius: 12px;
@@ -119,6 +101,61 @@
 
     .demo-card[id] {
       scroll-margin-top: 1rem;
+    }
+
+    /* Sticky repro block */
+    .demo-sticky-wrap {
+      margin: 24px 0 8px;
+      border: 1px dashed rgba(0, 0, 0, 0.18);
+      border-radius: 14px;
+      /* visible: overflow clip/hidden ломает sticky внутри */
+      overflow: visible;
+      background: rgba(255, 255, 255, 0.55);
+    }
+
+    .demo-sticky-bar {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+      padding: 12px 16px;
+      background: rgba(255, 248, 220, 0.95);
+      border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+    }
+
+    .demo-sticky-bar strong {
+      font-size: 14px;
+    }
+
+    .demo-sticky-bar span {
+      font-size: 12px;
+      color: #666;
+    }
+
+    .demo-sticky-fill {
+      padding: 16px;
+      min-height: 70vh;
+      background:
+        repeating-linear-gradient(
+          -12deg,
+          transparent,
+          transparent 18px,
+          rgba(0, 0, 0, 0.03) 18px,
+          rgba(0, 0, 0, 0.03) 19px
+        );
+    }
+
+    .demo-sticky-fill p {
+      max-width: 52ch;
+      margin: 0 0 12px;
+      line-height: 1.5;
+      color: #444;
     }
 
     .demo-tapbar {
@@ -205,9 +242,36 @@
   <div class="container">
     <h1>LightModal — Showcase</h1>
     <p>
-      Всё в одном: <strong>dialog fallback</strong>, inline, media, gallery, drag-to-close, idle UI, a11y, AJAX/JSON,
+      Простая модалка: <strong>dialog fallback</strong>, inline, media, drag-to-close, idle UI, a11y, AJAX/JSON,
       события и API.
     </p>
+
+    <section class="demo-sticky-wrap" id="demo-sticky" aria-label="Sticky repro">
+      <div class="demo-sticky-bar">
+        <div>
+          <strong>Sticky bar</strong>
+          <span> — прокрути вниз, пока бар «прилипнет», затем открой модалку</span>
+        </div>
+        <button class="demo-button" type="button" onclick="openModal('inline-simple', { closePosition: 'static' })">
+          Открыть модалку
+        </button>
+      </div>
+      <div class="demo-sticky-fill">
+        <p>
+          Блок для воспроизведения бага со <code>position: sticky</code> при scroll lock.
+          Прокрути страницу так, чтобы жёлтая полоска зафиксировалась сверху, и нажми «Открыть модалку».
+        </p>
+        <p>1. Sticky должен остаться на месте относительно viewport.</p>
+        <p>2. После закрытия модалки страница не должна прыгать.</p>
+        <p>3. Повтори несколько раз при разной прокрутке.</p>
+        <p aria-hidden="true">…</p>
+        <p aria-hidden="true">…</p>
+        <p aria-hidden="true">…</p>
+        <p aria-hidden="true">…</p>
+        <p aria-hidden="true">…</p>
+        <p aria-hidden="true">Достаточно места для скролла, чтобы sticky успел «прилипнуть».</p>
+      </div>
+    </section>
 
     <div class="demo-grid">
       <section class="demo-card" id="demo-inline">
@@ -235,37 +299,11 @@
         </div>
       </section>
 
-      <section class="demo-card" id="demo-gallery">
-        <h2>Галерея</h2>
-        <p>Группировка по <code>data-gallery</code>, подписи, счётчик, навигация, swipe.</p>
-
-        <div class="gallery">
-          <a href="assets/nasa/PIA01341.jpg" data-lightmodal data-lm-close-position="absolute" data-gallery="nature" data-caption="PIA01341">
-            <img src="assets/nasa/PIA01341.jpg" alt="PIA01341" />
-          </a>
-
-          <a href="assets/nasa/PIA17283.jpg" data-lightmodal data-lm-close-position="absolute" data-gallery="nature" data-caption="PIA17283">
-            <img src="assets/nasa/PIA17283.jpg" alt="PIA17283" />
-          </a>
-
-          <a href="assets/nasa/PIA25691.jpg" data-lightmodal data-lm-close-position="absolute" data-gallery="nature" data-caption="PIA25691">
-            <img src="assets/nasa/PIA25691.jpg" alt="PIA25691" />
-          </a>
-
-          <a href="assets/nasa/PIA00013.jpg" data-lightmodal data-lm-close-position="absolute" data-gallery="nature" data-caption="PIA00013">
-            <img src="assets/nasa/PIA00013.jpg" alt="PIA00013" />
-          </a>
-        </div>
-
-        <div class="demo-note">Клавиатура: ← →, Escape. Опции: <code>data-lm-loop</code>, <code>data-lm-idle</code>.
-        </div>
-      </section>
-
       <section class="demo-card" id="demo-video">
         <h2>Видео / iframe</h2>
         <p>YouTube/Vimeo/Rutube/VK распознаются по URL, иначе — iframe.</p>
         <div class="demo-row">
-          <a class="demo-link" href="https://www.youtube.com/watch?v=6v4S0mRSnO4" data-lightmodal data-lm-close-position="absolute" data-lm-width="95vw"
+          <a class="demo-link" href="https://www.youtube.com/watch?v=EVHs7jmRdXk" data-lightmodal data-lm-close-position="absolute" data-lm-width="95vw"
             data-lm-height="70vh">
             YouTube <code>auto</code>
           </a>
@@ -329,36 +367,6 @@
         </div>
       </section>
 
-      <section class="demo-card" id="demo-toolbar">
-        <h2>Toolbar + Zoom + Fullscreen</h2>
-        <p>Плавающий dock снизу: счётчик, зум и сброс, fullscreen и закрытие. Стрелки галереи — по бокам.</p>
-        <div class="demo-row">
-          <a class="demo-link" href="assets/nasa/PIA01341.jpg" data-lightmodal data-lm-close-position="absolute" data-lm-toolbar="true"
-            data-lm-zoom="true" data-lm-fullscreen="true">
-            Фото + Toolbar
-          </a>
-          <a class="demo-link" href="assets/nasa/PIA01341.jpg" data-lightmodal data-lm-close-position="absolute" data-gallery="toolbar-gallery"
-            data-lm-toolbar="true" data-lm-zoom="true" data-lm-fullscreen="true">
-            Галерея 1
-          </a>
-          <a class="demo-link" href="assets/nasa/PIA17283.jpg" data-lightmodal data-lm-close-position="absolute" data-gallery="toolbar-gallery"
-            data-lm-toolbar="true" data-lm-zoom="true" data-lm-fullscreen="true">
-            Галерея 2
-          </a>
-          <a class="demo-link" href="assets/nasa/PIA25691.jpg" data-lightmodal data-lm-close-position="absolute" data-gallery="toolbar-gallery"
-            data-lm-toolbar="true" data-lm-zoom="true" data-lm-fullscreen="true">
-            Галерея 3
-          </a>
-        </div>
-        <div class="demo-note">
-          Опции: <code>toolbar: true</code>, <code>zoom: true</code>, <code>fullscreen: true</code>.
-          Тулбар: <code>toolbarDisplay: { left, middle, right }</code> или авто (counter · zoom · fullscreen/close).
-          Поворот/отражение — через <code>toolbarDisplay.middle</code>:
-          <code>rotateCCW</code>, <code>rotateCW</code>, <code>flipX</code>, <code>flipY</code>.
-          Клавиши: <code>←/→</code> nav, <code>+/-</code> zoom, <code>0</code> reset, <code>f</code> fullscreen.
-        </div>
-      </section>
-
       <section class="demo-card" id="demo-themes">
         <h2>Темы / анимации</h2>
         <p>Тема задаётся на контейнере через <code>data-theme</code>.</p>
@@ -384,14 +392,13 @@
   </div>
 
   <nav class="demo-tapbar" data-lm-tap-bar aria-label="Навигация по демо-блокам">
+    <a class="demo-tapbar__link" href="#demo-sticky">Sticky</a>
     <a class="demo-tapbar__link" href="#demo-inline">Inline</a>
     <a class="demo-tapbar__link" href="#demo-api">API</a>
-    <a class="demo-tapbar__link" href="#demo-gallery">Галерея</a>
     <a class="demo-tapbar__link" href="#demo-video">Видео</a>
     <a class="demo-tapbar__link" href="#demo-ajax">AJAX</a>
     <a class="demo-tapbar__link" href="#demo-json">JSON</a>
     <a class="demo-tapbar__link" href="#demo-sheet">Sheet</a>
-    <a class="demo-tapbar__link" href="#demo-toolbar">Toolbar</a>
     <a class="demo-tapbar__link" href="#demo-themes">Темы</a>
   </nav>
 

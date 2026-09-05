@@ -16,20 +16,18 @@
 
 - 🎯 **Нулевые зависимости** — чистый JavaScript, никаких внешних библиотек
 - 🌊 **Lenis auto-detect** — автоматически определяет наличие Lenis и адаптирует scroll lock
+- 📌 **Sticky-friendly scroll lock** — без `overflow: hidden` на html/body, `position: sticky` не ломается
 - 📱 **Полная адаптивность** — отлично работает на всех устройствах
 - 🎨 **Темы** — поддержка светлой/тёмной темы с auto-detect
 - 🖱️ **Drag-to-close** — закрытие свайпом вверх или вниз (мышь + touch)
 - 📱 **Bottom Sheet** — нижняя шторка со spring-анимацией, нативный скролл внутри
 - 🧭 **Tap-bar teleport** — перенос нижней навигации внутрь sheet (как Vue `<Teleport>`)
 - 📜 **HTML slide mode** — скролл на весь viewport, карточка растёт по контенту (inline, AJAX, media)
-- 🧰 **Toolbar** — плавающий dock внутри `.lm-content`: счётчик, зум, fullscreen, закрытие
-- 🔍 **Zoom** — double-click, колесо, pinch; кнопки в тулбаре и клавиши `+` / `-` / `0`
-- 🖥️ **Fullscreen** — нативный Fullscreen API, кнопка в тулбаре и клавиша `f`
 - 🖼️ **Универсальность** — изображения, видео, YouTube, Vimeo, Rutube, VK Video, iframe, inline-контент
 - ♿ **Доступность** — полная поддержка клавиатуры, screen readers, ARIA
 - 🎭 **Анимации** — `mainClass`: `lm-zoom-in`, `lm-slide-up`, `lm-fade` (анимируется карточка, не слайд)
 - 🔒 **Focus trap** — обновляется после каждой загрузки контента
-- 💤 **Idle режим** — автоскрытие тулбара и стрелок галереи (mouse + touch + keyboard)
+- 💤 **Idle режим** — автоскрытие UI после бездействия (mouse + touch + keyboard)
 - 🌐 **Dialog API** — нативный `<dialog>` где поддерживается, `<div>` как fallback
 - 📡 **DOM-события** — `lightmodal:open` / `lightmodal:close` для интеграции с внешними модулями
 
@@ -140,7 +138,6 @@ LightModal.open('/api/modal.html', { type: 'ajax' });
    data-caption="Описание"
    data-type="image"
    data-src-add="my-extra-class"
-   data-gallery="group-1"
    data-alt="Alt text"
    data-lm-theme="dark"
    data-lm-main-class="lm-zoom-in"
@@ -149,12 +146,6 @@ LightModal.open('/api/modal.html', { type: 'ajax' });
    data-lm-close-on-backdrop="true"
    data-lm-drag-to-close="true"
    data-lm-close-existing="false"
-   data-lm-loop="false"
-   data-lm-gallery-nav="true"
-   data-lm-gallery-swipe="true"
-   data-lm-toolbar="true"
-   data-lm-zoom="true"
-   data-lm-fullscreen="true"
    data-lm-ajax-selector=".selector"
    data-lm-idle="3000">
   Открыть
@@ -168,7 +159,6 @@ LightModal.open('/api/modal.html', { type: 'ajax' });
 | `data-type` | Тип: `image`, `video`, `iframe`, `ajax`, `json` | auto |
 | `data-caption` | Подпись под контентом | — |
 | `data-src-add` | CSS-класс, добавляемый к обёртке | — |
-| `data-gallery` | Имя галереи (группировка) | — |
 | `data-alt` | Alt для изображений | — |
 | `data-lm-theme` | Тема: `dark`, `light`, `auto` | `dark` |
 | `data-lm-main-class` | Доп. CSS-класс контейнера (`lm-zoom-in`, `lm-slide-up`, `lm-fade`) | `''` |
@@ -178,12 +168,6 @@ LightModal.open('/api/modal.html', { type: 'ajax' });
 | `data-lm-close-on-backdrop` | Закрытие по клику на фон | `true` |
 | `data-lm-close-on-esc` | Закрытие по Escape | `true` |
 | `data-lm-close-existing` | Закрыть предыдущие модалки перед открытием | `false` |
-| `data-lm-loop` | Зацикливание галереи | `false` |
-| `data-lm-gallery-nav` | Кнопки prev/next в галерее | `true` |
-| `data-lm-gallery-swipe` | Свайп влево/вправо в галерее | `true` |
-| `data-lm-toolbar` | Плавающий тулбар внутри `.lm-content` | `false` |
-| `data-lm-zoom` | Зум изображений (кнопки, колесо, pinch, double-click) | `false` |
-| `data-lm-fullscreen` | Кнопка fullscreen в тулбаре | `false` |
 | `data-lm-ajax-selector` | CSS-селектор для извлечения части HTML-ответа (AJAX) | `null` |
 | `data-lm-idle` | Время до idle-режима (мс) | `3000` |
 | `data-lm-close-position` | Позиция кнопки закрытия: `static`, `absolute`, `fixed` | auto |
@@ -208,11 +192,6 @@ LightModal.open('content', {
   closeOnEsc: true,       // Escape закрывает
   closeExisting: false,   // Закрыть другие модалки перед открытием
 
-  // Галерея
-  galleryNav: true,       // Кнопки prev/next
-  gallerySwipe: true,     // Swipe влево/вправо в галерее
-  loop: false,            // Зацикливание галереи
-
   // Анимация
   openSpeed: 366,         // Скорость открытия (мс); после неё включается скролл слайда
   closeSpeed: 366,        // Скорость закрытия (мс)
@@ -230,23 +209,10 @@ LightModal.open('content', {
   width: null,            // число (px) или строка ('80vw')
   height: null,
 
-  // Toolbar + zoom + fullscreen
-  toolbar: false,         // плавающий dock внутри .lm-content.has-toolbar
-  toolbarAbsolute: true,  // true — absolute снизу карточки; false — в потоке
-  toolbarDisplay: null,   // null = auto; или { left, middle, right }
-  toolbarItems: null,     // legacy: плоский список → middle
-  zoom: false,            // зум изображений
-  zoomMin: 1,
-  zoomMax: 4,
-  zoomStep: 0.5,
-  fullscreen: false,      // кнопка fullscreen в тулбаре
-
   // Шаблоны (HTML-строки)
   spinnerTpl: '<div class="lm-spinner"></div>',
   errorTpl: '<div class="lm-error">{{message}}</div>', // {{message}} — плейсхолдер
   closeBtnTpl: '<button class="lm-close-btn" type="button" aria-label="Close">…</button>',
-  prevBtnTpl: '<button class="lm-nav-btn lm-nav-prev" type="button" aria-label="Prev">…</button>',
-  nextBtnTpl: '<button class="lm-nav-btn lm-nav-next" type="button" aria-label="Next">…</button>',
 
   // Bottom sheet
   bottomSheet: false,      // открыть как нижний лист (аналог data-spring-bottom-sheet)
@@ -391,15 +357,6 @@ window.lenisInstance = myLenisInstance;
   /* Спиннер */
   --lm-spinner-color-1: rgba(0, 0, 0, 0.1);
   --lm-spinner-color-2: rgba(0, 0, 0, 0.8);
-
-  /* Toolbar dock */
-  --lm-toolbar-bg: rgba(255, 255, 255, 0.9);
-  --lm-toolbar-border: rgba(0, 0, 0, 0.08);
-  --lm-toolbar-shadow: 0 10px 40px rgba(0, 0, 0, 0.16);
-  --lm-toolbar-blur: 16px;
-  --lm-toolbar-btn-size: 36px;
-  --lm-toolbar-btn-color: #333;
-  --lm-toolbar-counter-color: #555;
 
   /* z-index */
   --lm-z-index: 1050;
@@ -644,81 +601,6 @@ LightModal.open('#sheet-content', {
 
 > **Важно:** у переносимого элемента должны быть свои стили для состояния `.lm-tap-bar-moved` (в демо — отдельный блок в `index.html`). Библиотека задаёт позиционирование внутри sheet; внешний вид — на стороне проекта.
 
-### Toolbar + Zoom + Fullscreen
-
-Плавающий dock внутри карточки (`.lm-content.has-toolbar`), не на всём viewport.
-
-```html
-<a href="photo.jpg"
-   data-lightmodal
-   data-gallery="album"
-   data-lm-toolbar="true"
-   data-lm-zoom="true"
-   data-lm-fullscreen="true">
-  Открыть
-</a>
-```
-
-```javascript
-LightModal.open('photo.jpg', {
-  toolbar: true,
-  zoom: true,
-  fullscreen: true,
-});
-```
-
-**Структура DOM** (при `toolbar: true`):
-
-```html
-<div class="lm-content has-toolbar">
-  <!-- галерея: стрелки по бокам карточки -->
-  <ul class="lm-nav-group" aria-label="Gallery navigation">
-    <li class="lm-nav-item">
-      <button class="lm-nav-btn lm-nav-prev" type="button">…</button>
-    </li>
-    <li class="lm-nav-item">
-      <button class="lm-nav-btn lm-nav-next" type="button">…</button>
-    </li>
-  </ul>
-
-  <nav class="lm-toolbar is-absolute" aria-label="Controls">
-    <ul class="lm-toolbar-group lm-toolbar-group--start">…</ul>
-    <ul class="lm-toolbar-group lm-toolbar-group--tools">…</ul>
-    <ul class="lm-toolbar-group lm-toolbar-group--actions">…</ul>
-  </nav>
-
-  <img>…</img>
-</div>
-```
-
-Без `toolbar` стрелки галереи по-прежнему вешаются на `.lm-container`.
-
-**Состав тулбара** (`toolbarDisplay`):
-
-| Колонка | Класс | По умолчанию (auto) |
-|---------|-------|---------------------|
-| `left` | `--start` | `counter` (только галерея) |
-| `middle` | `--tools` | `zoomIn`, `zoomOut`, `toggle1to1`, `reset` (если `zoom: true`) |
-| `right` | `--actions` | `fullscreen` (если включён), `close` |
-
-Доступные элементы: `counter`, `prev`, `next`, `close`, `fullscreen`, `zoomIn`, `zoomOut`, `toggle1to1`, `reset`, `rotateCCW`, `rotateCW`, `flipX`, `flipY`.
-
-```javascript
-LightModal.open(items, {
-  toolbar: true,
-  zoom: true,
-  toolbarDisplay: {
-    left: ['counter'],
-    middle: ['zoomIn', 'zoomOut', 'rotateCCW', 'rotateCW', 'flipX', 'flipY', 'reset'],
-    right: ['fullscreen', 'close'],
-  },
-});
-```
-
-**Клавиши:** `←` / `→` — навигация, `+` / `-` — зум, `0` — сброс, `f` — fullscreen, `Escape` — закрытие.
-
-В idle-режиме тулбар и `.lm-nav-group` скрываются, появляются при наведении.
-
 ### Темы / анимации (`mainClass`)
 
 Готовые классы анимации карточки:
@@ -756,7 +638,6 @@ LightModal.open('photo.jpg', {
 - анимация открытия/закрытия — только у карточки
 - во время анимации `overflow: hidden`; после `openSpeed` контейнер получает `.is-ready` и слайд становится прокручиваемым (`overflow: auto`) — удобно при маленькой высоте окна
 - клик по backdrop (вне карточки) закрывает модалку
-- при `toolbar: true` тулбар и стрелки галереи живут внутри `.lm-content.has-toolbar`
 
 Bottom sheet использует **отдельный** layout со скроллом внутри шторки, без `has-html`.
 
@@ -795,7 +676,7 @@ LightModal.open('image.jpg', {
 - Восстановление фокуса на триггере после закрытия
 - `prefers-reduced-motion` — анимации отключаются
 - `prefers-contrast: high` — усиленные границы и контраст
-- Keyboard: `Escape` — закрытие, `Tab`/`Shift+Tab` — фокус внутри, `←`/`→` — галерея, `+`/`-`/`0` — зум, `f` — fullscreen
+- Keyboard: `Escape` — закрытие, `Tab`/`Shift+Tab` — фокус внутри
 
 ## 📋 Поддерживаемые типы контента
 

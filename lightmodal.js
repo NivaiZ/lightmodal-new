@@ -49,51 +49,6 @@
 
 	const isTouchDevice = () => 'ontouchstart' in window || navigator.maxTouchPoints > 0;
 
-	// Toolbar icons — centered in 24×24 viewBox
-	const TOOLBAR_ICONS = {
-		zoomIn: `<circle cx="12" cy="12" r="5"/><path d="M12 9v6M9 12h6"/><path d="m16.5 16.5 3.5 3.5"/>`,
-		zoomOut: `<circle cx="12" cy="12" r="5"/><path d="M9 12h6"/><path d="m16.5 16.5 3.5 3.5"/>`,
-		toggle1to1: `<rect x="8" y="8" width="8" height="8" rx="1"/><path d="M10.5 12h3"/>`,
-		rotateCCW: `<path d="M6 12a6 6 0 1 0 1.8-4.2"/><path d="M6 6v3h3"/>`,
-		rotateCW: `<path d="M18 12a6 6 0 1 1-1.8-4.2"/><path d="M18 6v3h-3"/>`,
-		flipX: `<path d="M12 7v10"/><path d="m9.5 10 2.5-2.5 2.5 2.5"/><path d="m9.5 14 2.5 2.5 2.5-2.5"/>`,
-		flipY: `<path d="M7 12h10"/><path d="m10 9.5-2.5 2.5 2.5 2.5"/><path d="m14 9.5 2.5 2.5-2.5 2.5"/>`,
-		reset: `<path d="M6 12a6 6 0 1 0 6-6"/><path d="M6 6v3h3"/>`,
-		fullscreen: `<path d="M9 4H4v5M15 4h5v5M9 20H4v-5M15 20h5v-5"/>`,
-		fullscreenExit: `<path d="M10 4H4v6M14 4h6v6M10 20H4v-6M14 20h6v-6"/>`,
-	};
-
-	// Cross-browser Fullscreen API (handles webkit/moz/ms prefixes, Safari, etc.)
-	const fsAPI = (() => {
-		const candidates = [
-			{ req: 'requestFullscreen',       exit: 'exitFullscreen',       elem: 'fullscreenElement',       enabled: 'fullscreenEnabled',       change: 'fullscreenchange',       error: 'fullscreenerror'       },
-			{ req: 'webkitRequestFullscreen',  exit: 'webkitExitFullscreen',  elem: 'webkitFullscreenElement',  enabled: 'webkitFullscreenEnabled',  change: 'webkitfullscreenchange',  error: 'webkitfullscreenerror'  },
-			{ req: 'mozRequestFullScreen',     exit: 'mozCancelFullScreen',   elem: 'mozFullScreenElement',     enabled: 'mozFullScreenEnabled',     change: 'mozfullscreenchange',     error: 'mozfullscreenerror'     },
-			{ req: 'msRequestFullscreen',      exit: 'msExitFullscreen',      elem: 'msFullscreenElement',      enabled: 'msFullscreenEnabled',      change: 'MSFullscreenChange',      error: 'MSFullscreenError'      },
-		];
-		const api = candidates.find(v => v.req in document.documentElement);
-		if (!api) return null;
-		return {
-			request: (el, opts) => {
-				const fn = el[api.req];
-				if (!fn) return Promise.reject(new Error('not supported'));
-				// webkit doesn't support the options argument
-				try { return fn.call(el, api.req.startsWith('webkit') ? undefined : opts) || Promise.resolve(); }
-				catch (e) { return Promise.reject(e); }
-			},
-			exit: () => {
-				const fn = document[api.exit];
-				if (!fn) return Promise.resolve();
-				try { return fn.call(document) || Promise.resolve(); }
-				catch (e) { return Promise.reject(e); }
-			},
-			get element() { return document[api.elem]; },
-			get enabled() { return !!document[api.enabled]; },
-			change: api.change,
-			error: api.error,
-		};
-	})();
-
 	const getScrollableParent = (node, boundary) => {
 		while (node && node !== boundary) {
 			const ov = window.getComputedStyle(node).overflowY;
@@ -267,47 +222,97 @@
 		scrollbarWidth: 0,
 		savedScrollY: 0,
 		lenisWasActive: false,
+		_handlers: null,
 
 		_calcScrollbarWidth() {
-			return Math.max(0, window.innerWidth - document.documentElement.clientWidth);
+			// как Fancybox: innerWidth − ширина documentElement
+			return Math.max(0, window.innerWidth - document.documentElement.getBoundingClientRect().width);
+		},
+
+		_isInModal(target) {
+			return !!(target && target.closest?.('.lm-container, dialog.lm-container'));
+		},
+
+		_allowScrollInModal(target) {
+			const modal = target?.closest?.('.lm-container, dialog.lm-container');
+			if (!modal) return false;
+			// разрешаем только реальный overflow-скролл внутри модалки (inline/AJAX),
+			// не «протекание» wheel на страницу под lightbox
+			return !!getScrollableParent(target, modal);
 		},
 
 		lock() {
 			this.lockCount++;
 			if (this.lockCount > 1) return;
 
+			const html = document.documentElement;
+			const body = document.body;
+
 			this.scrollbarWidth = this._calcScrollbarWidth();
 			this.savedScrollY = lenisAdapter.getScrollY();
 			this.lenisWasActive = lenisAdapter.stop();
 
-			const body = document.body;
-			const html = document.documentElement;
-			const sbw = this.scrollbarWidth;
+			const existingMargin = parseFloat(window.getComputedStyle(body).marginRight) || 0;
+			html.style.setProperty('--lm-scrollbar-compensate', `${this.scrollbarWidth}px`);
+			if (existingMargin) {
+				body.style.setProperty('--lm-body-margin', `${existingMargin}px`);
+			}
 
-			html.style.setProperty('--lm-scrollbar-compensate', `${sbw}px`);
 			html.classList.add('lm-scroll-locked');
+			body.classList.add('lm-hide-scrollbar', 'lm-scroll-locked-body');
 
-			const origMargin = parseFloat(window.getComputedStyle(body).marginRight) || 0;
-			html.style.setProperty('--lm-body-margin', `${origMargin}px`);
+			const onWheel = (e) => {
+				if (this._allowScrollInModal(e.target)) return;
+				e.preventDefault();
+			};
 
-			// Lock scroll via overflow + scrollbar compensation (body stays in flow).
-			body.classList.add('lm-scroll-locked-body');
+			const onTouchMove = (e) => {
+				if (this._allowScrollInModal(e.target)) return;
+				e.preventDefault();
+			};
+
+			const onScroll = () => {
+				if (window.scrollY !== this.savedScrollY) {
+					window.scrollTo(0, this.savedScrollY);
+				}
+			};
+
+			const onKeyDown = (e) => {
+				const keys = new Set(['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' ']);
+				if (!keys.has(e.key)) return;
+				if (e.target?.closest?.('input, textarea, select, [contenteditable="true"]')) return;
+				if (this._allowScrollInModal(e.target)) return;
+				e.preventDefault();
+			};
+
+			window.addEventListener('wheel', onWheel, { passive: false });
+			window.addEventListener('touchmove', onTouchMove, { passive: false });
+			window.addEventListener('scroll', onScroll, { passive: true });
+			document.addEventListener('keydown', onKeyDown, { passive: false });
+
+			this._handlers = { onWheel, onTouchMove, onScroll, onKeyDown };
 		},
 
 		unlock() {
 			this.lockCount = Math.max(0, this.lockCount - 1);
 			if (this.lockCount > 0) return;
 
-			const body = document.body;
 			const html = document.documentElement;
-
-			body.classList.remove('lm-scroll-locked-body');
-
+			const body = document.body;
+			body.classList.remove('lm-hide-scrollbar', 'lm-scroll-locked-body');
 			html.classList.remove('lm-scroll-locked');
-			html.style.removeProperty('--lm-scrollbar-compensate');
-			html.style.removeProperty('--lm-body-margin');
+			html.style.setProperty('--lm-scrollbar-compensate', '');
+			body.style.setProperty('--lm-body-margin', '');
 
-			// Keep behavior consistent with Lenis adapter (and restore potential minor jumps).
+			if (this._handlers) {
+				const { onWheel, onTouchMove, onScroll, onKeyDown } = this._handlers;
+				window.removeEventListener('wheel', onWheel);
+				window.removeEventListener('touchmove', onTouchMove);
+				window.removeEventListener('scroll', onScroll);
+				document.removeEventListener('keydown', onKeyDown);
+				this._handlers = null;
+			}
+
 			lenisAdapter.scrollTo(this.savedScrollY);
 
 			if (this.lenisWasActive) {
@@ -365,16 +370,11 @@
 			theme: 'dark',
 
 			closeButton: true,
-			// static | absolute | fixed | null (auto: static — inline, absolute — media/галерея)
+			// static | absolute | fixed | null (auto: static — inline, absolute — media)
 			closePosition: null,
 			closeOnBackdrop: true,
 			closeOnEsc: true,
 			closeExisting: false,
-
-			// Галерея
-			galleryNav: true,
-			gallerySwipe: true,
-			loop: false,
 
 			openSpeed: 366,
 			closeSpeed: 366,
@@ -388,14 +388,10 @@
 
 			// i18n
 			closeLabel: 'Закрыть',
-			prevLabel: 'Назад',
-			nextLabel: 'Вперёд',
 
 			spinnerTpl: '<div class="lm-spinner"></div>',
 			errorTpl: '<div class="lm-error">{{message}}</div>',
 			closeBtnTpl: null,
-			prevBtnTpl: null,
-			nextBtnTpl: null,
 
 			width: null,
 			height: null,
@@ -419,42 +415,10 @@
 			// Keyboard mapping — key → action name
 			keyboard: {
 				Escape: 'close',
-				ArrowLeft: 'prev',
-				ArrowRight: 'next',
-				f: 'fullscreen',
-				'+': 'zoomIn',
-				'=': 'zoomIn',
-				'-': 'zoomOut',
-				'0': 'zoomReset',
 			},
 
 			// Plugin system
 			plugins: [],
-
-			// Toolbar: floating dock, groups start | tools | actions
-			toolbar: false,
-			toolbarAbsolute: true,
-			toolbarDisplay: null, // null = auto; or { left, middle, right }
-			toolbarItems: null, // legacy flat list → middle column
-			fullscreenLabel: 'Fullscreen',
-			exitFullscreenLabel: 'Exit fullscreen',
-			zoomInLabel: 'Zoom in',
-			zoomOutLabel: 'Zoom out',
-			toggle1to1Label: 'Toggle zoom level',
-			rotateCCWLabel: 'Rotate counterclockwise',
-			rotateCWLabel: 'Rotate clockwise',
-			flipXLabel: 'Flip horizontally',
-			flipYLabel: 'Flip vertically',
-			resetLabel: 'Reset view',
-
-			// Fullscreen
-			fullscreen: false,
-
-			// Zoom for images (double-click, wheel, pinch)
-			zoom: false,
-			zoomMin: 1,
-			zoomMax: 4,
-			zoomStep: 0.5,
 
 			// AJAX
 			sanitize: true,        // true | false | (html) => DocumentFragment
@@ -468,8 +432,16 @@
 
 		constructor(items, options = {}) {
 			if (!Array.isArray(items)) items = [items];
-			this.items = items.map(i => typeof i === 'string' ? { src: i } : i);
 			this.options = merge({}, LightModal.defaults, options);
+			this.items = items.map((i) => {
+				const item = typeof i === 'string' ? { src: i } : { ...i };
+				// type из options (LightModal.open(src, { type: 'json' })) или авто по расширению
+				if (!item.type && options.type) item.type = options.type;
+				if (!item.type && item.src && /\.json(\?|#|$)/i.test(item.src)) {
+					item.type = 'json';
+				}
+				return item;
+			});
 			this.state = States.Init;
 			this.id = `lm-${++LightModal.instanceCounter}`;
 			this.currentIndex = Math.min(
@@ -482,9 +454,6 @@
 			this.contentWrapper = null;
 			this.content = null;
 			this.closeBtn = null;
-			this.prevBtn = null;
-			this.nextBtn = null;
-			this.navGroup = null;
 			this.useDialog = false;
 
 			this.isIdle = false;
@@ -503,24 +472,10 @@
 			this._justDragged = false;
 			this._ajaxController = null;
 
-			this.toolbar = null;
-			this.toolbarCounter = null;
-			this.toolbarCounterCurrent = null;
-			this.toolbarCounterTotal = null;
-			this._toolbarZoomBtns = null;
-			this._fullscreenBtn = null;
-			this._fullscreenHandler = null;
-			this._isFullscreen = false;
 			this._pluginCleanups = [];
-			this._zoomCleanup = null;
-			this._zoomActive = false;
 
 			this.events = new Map();
 			this.init();
-		}
-
-		get isGallery() {
-			return this.items.length > 1;
 		}
 
 		init() {
@@ -540,8 +495,12 @@
 			this.container.setAttribute('id', this.id);
 			this.container.setAttribute('role', 'dialog');
 			this.container.setAttribute('aria-modal', 'true');
+			// каждая следующая модалка выше предыдущей (stack)
+			this.container.style.zIndex = String(
+				(parseInt(getComputedStyle(document.documentElement).getPropertyValue('--lm-z-index'), 10) || 1050)
+				+ LightModal.instances.size
+			);
 
-			if (this.isGallery) this.container.classList.add('is-gallery');
 			if (this.options.bottomSheet) {
 				this.container.classList.add('is-bottom-sheet');
 				if (this.options.tapBarMove) this.container.classList.add('has-tap-bar-move');
@@ -577,43 +536,19 @@
 				this.container.classList.add('is-touch');
 			}
 
-			if (this.options.toolbar) {
-				this._createToolbar();
-				if (this.options.toolbarAbsolute !== false) {
-					this.toolbar.classList.add('is-absolute');
-				} else {
-					this.contentWrapper.classList.add('has-controls');
-				}
-				this.container.classList.add('has-toolbar');
-			} else if (this.options.closeButton) {
+			if (this.options.closeButton) {
 				this.closeBtn = this._createCloseButton();
 				this.contentWrapper.appendChild(this.closeBtn);
 				this._applyClosePosition();
 			}
 
 			this.content = h('div', 'lm-content');
-			if (this.options.toolbar) {
-				this.content.classList.add('has-toolbar');
-				this.content.appendChild(this.toolbar);
-			}
 			this.contentWrapper.appendChild(this.content);
 
 			if (this.options.bottomSheet) {
 				const dragBottom = h('div', 'lm-drag-indicator lm-drag-indicator--bottom');
 				dragBottom.setAttribute('aria-hidden', 'true');
 				this.contentWrapper.appendChild(dragBottom);
-			}
-
-			if (this.isGallery && this.options.galleryNav) {
-				if (this.options.toolbar) {
-					this._createNavGroup();
-					this.content.insertBefore(this.navGroup, this.toolbar);
-				} else {
-					this.prevBtn = this._createNavButton('prev');
-					this.nextBtn = this._createNavButton('next');
-					this.container.appendChild(this.prevBtn);
-					this.container.appendChild(this.nextBtn);
-				}
 			}
 
 			this.container.appendChild(this.backdrop);
@@ -625,7 +560,6 @@
 
 			document.body.appendChild(this.container);
 			this.attachEvents();
-			this._updateNavButtons();
 		}
 
 		_applySizeVars() {
@@ -643,11 +577,28 @@
 				el.style.setProperty('--lm-max-height', h);
 			}
 
-			if (this.options.width && this.contentWrapper) {
-				this.contentWrapper.style.maxWidth = w;
+			if (!this.contentWrapper) return;
+
+			const isHtmlSlide = this.contentWrapper.classList.contains('has-html');
+
+			// В has-html width/height задают карточку через CSS-переменные, не сам viewport-слайд
+			if (isHtmlSlide) {
+				this.contentWrapper.style.removeProperty('max-width');
+				this.contentWrapper.style.removeProperty('max-height');
+				return;
 			}
-			if (this.options.height && this.contentWrapper) {
+
+			if (this.options.width) {
+				this.contentWrapper.style.maxWidth = w;
+			} else {
+				this.contentWrapper.style.removeProperty('max-width');
+			}
+
+			// `none` нельзя ставить inline — иначе сносит CSS max-height: 90vh у media lightbox
+			if (this.options.height && h && h !== 'none') {
 				this.contentWrapper.style.maxHeight = h;
+			} else {
+				this.contentWrapper.style.removeProperty('max-height');
 			}
 		}
 
@@ -664,221 +615,6 @@
 			return btn;
 		}
 
-		_createNavGroup() {
-			this.navGroup = h('ul', 'lm-nav-group');
-			this.navGroup.setAttribute('aria-label', 'Gallery navigation');
-			this.prevBtn = this._createNavButton('prev');
-			this.nextBtn = this._createNavButton('next');
-			const prevLi = h('li', 'lm-nav-item');
-			const nextLi = h('li', 'lm-nav-item');
-			prevLi.appendChild(this.prevBtn);
-			nextLi.appendChild(this.nextBtn);
-			this.navGroup.append(prevLi, nextLi);
-		}
-
-		_createNavButton(direction) {
-			const tplKey = direction === 'prev' ? 'prevBtnTpl' : 'nextBtnTpl';
-			const labelKey = direction === 'prev' ? 'prevLabel' : 'nextLabel';
-
-			if (this.options[tplKey]) {
-				const tmp = h('div');
-				tmp.innerHTML = this.options[tplKey];
-				return tmp.firstElementChild;
-			}
-			const btn = h('button', `lm-nav-btn lm-nav-${direction}`);
-			btn.type = 'button';
-			btn.setAttribute('aria-label', this.options[labelKey]);
-			const path = direction === 'prev' ? 'M15 18l-6-6 6-6' : 'M9 18l6-6-6-6';
-			btn.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${path}"/></svg>`;
-			return btn;
-		}
-
-		_getToolbarDisplay() {
-			if (this.options.toolbarDisplay) {
-				return {
-					left: [...(this.options.toolbarDisplay.left || [])],
-					middle: [...(this.options.toolbarDisplay.middle || [])],
-					right: [...(this.options.toolbarDisplay.right || [])],
-				};
-			}
-			if (this.options.toolbarItems?.length) {
-				return { left: [], middle: [...this.options.toolbarItems], right: [] };
-			}
-			const left = this.isGallery ? ['counter'] : [];
-			const middle = this.options.zoom
-				? ['zoomIn', 'zoomOut', 'toggle1to1', 'reset']
-				: [];
-			const right = [];
-			if (this.options.fullscreen) right.push('fullscreen');
-			if (this.options.closeButton) right.push('close');
-			return { left, middle, right };
-		}
-
-		_createToolbar() {
-			this.toolbar = h('nav', 'lm-toolbar');
-			this.toolbar.setAttribute('aria-label', 'Controls');
-			this._toolbarZoomBtns = [];
-			const display = this._getToolbarDisplay();
-			const columns = [
-				['left', 'lm-toolbar-group lm-toolbar-group--start'],
-				['middle', 'lm-toolbar-group lm-toolbar-group--tools'],
-				['right', 'lm-toolbar-group lm-toolbar-group--actions'],
-			];
-			for (const [key, cls] of columns) {
-				const col = h('ul', cls);
-				for (const item of display[key]) {
-					this._appendToolbarItem(col, item);
-				}
-				if (col.childNodes.length) this.toolbar.appendChild(col);
-			}
-		}
-
-		_toolbarAppendItem(list, node) {
-			const li = h('li', 'lm-toolbar-item');
-			li.appendChild(node);
-			list.appendChild(li);
-			return li;
-		}
-
-		_appendToolbarItem(parent, item) {
-			switch (item) {
-				case 'close':
-					if (this.options.closeButton) {
-						this.closeBtn = this._createCloseButton();
-						this.closeBtn.classList.add('lm-toolbar-btn', 'lm-toolbar-btn--dismiss');
-						this.closeBtn.addEventListener('click', (e) => e.stopPropagation());
-						this._toolbarAppendItem(parent, this.closeBtn);
-					}
-					break;
-				case 'prev':
-					if (this.isGallery && this.options.galleryNav) {
-						this.prevBtn = this._createNavButton('prev');
-						this._toolbarAppendItem(parent, this.prevBtn);
-					}
-					break;
-				case 'counter':
-					if (this.isGallery) {
-						this.toolbarCounter = h('div', 'lm-toolbar-counter');
-						this.toolbarCounterCurrent = h('span');
-						this.toolbarCounterCurrent.textContent = String(this.currentIndex + 1);
-						this.toolbarCounterTotal = h('span');
-						this.toolbarCounterTotal.textContent = String(this.items.length);
-						this.toolbarCounter.append(
-							this.toolbarCounterCurrent,
-							h('span', 'lm-toolbar-counter-sep', '·'),
-							this.toolbarCounterTotal
-						);
-						this._toolbarAppendItem(parent, this.toolbarCounter);
-					}
-					break;
-				case 'next':
-					if (this.isGallery && this.options.galleryNav) {
-						this.nextBtn = this._createNavButton('next');
-						this._toolbarAppendItem(parent, this.nextBtn);
-					}
-					break;
-				case 'fullscreen':
-					if (this.options.fullscreen) {
-						this._fullscreenBtn = this._createFullscreenButton();
-						this._toolbarAppendItem(parent, this._fullscreenBtn);
-					}
-					break;
-				case 'zoom':
-					if (this.options.zoom) {
-						this._appendToolbarItem(parent, 'zoomIn');
-						this._appendToolbarItem(parent, 'zoomOut');
-					}
-					break;
-				case 'zoomIn':
-				case 'zoomOut':
-				case 'toggle1to1':
-				case 'rotateCCW':
-				case 'rotateCW':
-				case 'flipX':
-				case 'flipY':
-				case 'reset':
-					if (!this.options.zoom) break;
-					this._toolbarAppendItem(parent, this._createPanzoomButton(item));
-					break;
-			}
-		}
-
-		_createPanzoomButton(action) {
-			const labels = {
-				zoomIn: this.options.zoomInLabel,
-				zoomOut: this.options.zoomOutLabel,
-				toggle1to1: this.options.toggle1to1Label,
-				rotateCCW: this.options.rotateCCWLabel,
-				rotateCW: this.options.rotateCWLabel,
-				flipX: this.options.flipXLabel,
-				flipY: this.options.flipYLabel,
-				reset: this.options.resetLabel,
-			};
-			const handlers = {
-				zoomIn: () => this._zoomIn?.(),
-				zoomOut: () => this._zoomOut?.(),
-				toggle1to1: () => this._zoomToggle1to1?.(),
-				rotateCCW: () => this._rotateCCW?.(),
-				rotateCW: () => this._rotateCW?.(),
-				flipX: () => this._flipX?.(),
-				flipY: () => this._flipY?.(),
-				reset: () => this._zoomReset?.(),
-			};
-			const btn = h('button', 'lm-toolbar-btn');
-			btn.type = 'button';
-			btn.setAttribute('aria-label', labels[action]);
-			btn.dataset.lmToolbarAction = action;
-			btn.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true">${TOOLBAR_ICONS[action]}</svg>`;
-			btn.addEventListener('click', (e) => {
-				e.stopPropagation();
-				handlers[action]?.();
-			});
-			btn.style.display = 'none';
-			this._toolbarZoomBtns.push(btn);
-			return btn;
-		}
-
-		_createFullscreenButton() {
-			const btn = h('button', 'lm-toolbar-btn lm-fullscreen-btn');
-			btn.type = 'button';
-			btn.setAttribute('aria-label', this.options.fullscreenLabel);
-			btn.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true">
-				<g class="lm-icon-expand">${TOOLBAR_ICONS.fullscreen}</g>
-				<g class="lm-icon-shrink" style="display:none">${TOOLBAR_ICONS.fullscreenExit}</g>
-			</svg>`;
-			btn.addEventListener('click', (e) => {
-				e.stopPropagation();
-				this._toggleFullscreen();
-			});
-			return btn;
-		}
-
-		_updateToolbarZoomVisibility(show) {
-			const display = show ? '' : 'none';
-			if (this._toolbarZoomBtns) {
-				for (const btn of this._toolbarZoomBtns) btn.style.display = display;
-			}
-		}
-
-		_updateNavButtons() {
-			if (!this.isGallery || !this.options.galleryNav) return;
-			if (this.options.loop) {
-				this.prevBtn?.removeAttribute('disabled');
-				this.nextBtn?.removeAttribute('disabled');
-			} else {
-				if (this.currentIndex === 0) this.prevBtn?.setAttribute('disabled', '');
-				else this.prevBtn?.removeAttribute('disabled');
-				if (this.currentIndex === this.items.length - 1) this.nextBtn?.setAttribute('disabled', '');
-				else this.nextBtn?.removeAttribute('disabled');
-			}
-			if (this.toolbarCounterCurrent) {
-				this.toolbarCounterCurrent.textContent = String(this.currentIndex + 1);
-				this.toolbarCounterTotal.textContent = String(this.items.length);
-			} else if (this.toolbarCounter) {
-				this.toolbarCounter.textContent = `${this.currentIndex + 1} / ${this.items.length}`;
-			}
-		}
-
 		attachEvents() {
 			if (this.options.closeOnBackdrop) {
 				this.backdrop.addEventListener('click', () => {
@@ -891,7 +627,6 @@
 					if (this._justDragged) return;
 					if (!this.contentWrapper.classList.contains('has-html')) return;
 					if (this.content.contains(e.target)) return;
-					if (this.toolbar?.contains(e.target)) return;
 					if (this.contentWrapper.querySelector('.lm-caption')?.contains(e.target)) return;
 					if (e.target.closest('.lm-drag-indicator, .lm-tap-bar-moved')) return;
 					this.close();
@@ -903,19 +638,6 @@
 				this.closeBtn.addEventListener('click', (e) => {
 					e.stopPropagation();
 					this.close();
-				});
-			}
-
-			if (this.prevBtn) {
-				this.prevBtn.addEventListener('click', (e) => {
-					e.stopPropagation();
-					this.prev();
-				});
-			}
-			if (this.nextBtn) {
-				this.nextBtn.addEventListener('click', (e) => {
-					e.stopPropagation();
-					this.next();
 				});
 			}
 
@@ -932,21 +654,6 @@
 
 			if (this.options.dragToClose) this.setupDragToClose();
 			if (this.options.idle) this.setupIdleMode();
-
-			if (this.options.fullscreen && fsAPI) {
-				this._fullscreenHandler = () => {
-					const isFs = !!fsAPI.element;
-					this._isFullscreen = isFs;
-					this.container.classList.toggle('is-fullscreen', isFs);
-					if (this._fullscreenBtn) {
-						this._fullscreenBtn.setAttribute('aria-label',
-							isFs ? this.options.exitFullscreenLabel : this.options.fullscreenLabel);
-						this._fullscreenBtn.querySelector('.lm-icon-expand')?.style.setProperty('display', isFs ? 'none' : '');
-						this._fullscreenBtn.querySelector('.lm-icon-shrink')?.style.setProperty('display', isFs ? '' : 'none');
-					}
-				};
-				document.addEventListener(fsAPI.change, this._fullscreenHandler);
-			}
 		}
 
 		handleKeydown(e) {
@@ -958,39 +665,10 @@
 			const action = map[e.key];
 			if (!action) return;
 
-			switch (action) {
-				case 'close':
-					if (!this.options.closeOnEsc) return;
-					e.preventDefault();
-					this.close();
-					break;
-				case 'prev':
-					if (!this.isGallery) return;
-					e.preventDefault();
-					this.prev();
-					break;
-				case 'next':
-					if (!this.isGallery) return;
-					e.preventDefault();
-					this.next();
-					break;
-				case 'fullscreen':
-					if (!this.options.fullscreen) return;
-					e.preventDefault();
-					this._toggleFullscreen();
-					break;
-				case 'zoomIn':
-					e.preventDefault();
-					this._zoomBy?.(this.options.zoomStep);
-					break;
-				case 'zoomOut':
-					e.preventDefault();
-					this._zoomBy?.(-this.options.zoomStep);
-					break;
-				case 'zoomReset':
-					e.preventDefault();
-					this._zoomReset?.();
-					break;
+			if (action === 'close') {
+				if (!this.options.closeOnEsc) return;
+				e.preventDefault();
+				this.close();
 			}
 		}
 
@@ -1062,11 +740,6 @@
 					this.contentWrapper.style.transform = `translateY(${effectiveDy}px)`;
 					this.contentWrapper.style.opacity = 1 - p * 0.3;
 					this.backdrop.style.opacity = 1 - p * 0.5;
-				} else if (dragAxis === 'x' && this.isGallery && this.options.gallerySwipe) {
-					// Горизонталь в галерее — превью переключения
-					const p = Math.min(Math.abs(dx) / 300, 1);
-					this.contentWrapper.style.transform = `translateX(${dx * 0.3}px)`;
-					this.contentWrapper.style.opacity = 1 - p * 0.2;
 				}
 			};
 
@@ -1088,30 +761,16 @@
 					this._justDraggedTimer = null;
 				}, 300);
 
-				const dx = currentX - startX;
 				const dy = currentY - startY;
 				this.contentWrapper.classList.remove('is-dragging', 'is-draggable');
 
 				// Bottom sheet вниз не тянется — закрытие только backdrop / API
 				const closeThreshold = 100;
 				const closeVertical = dragAxis === 'y' && dy > closeThreshold;
-				const swipeHorizontal = dragAxis === 'x'
-					&& this.isGallery
-					&& this.options.gallerySwipe
-					&& Math.abs(dx) > 80;
 
 				if (closeVertical) {
 					this.contentWrapper.classList.add('lm-throw-out-down');
 					setTimeout(() => this.close(), 200);
-				} else if (swipeHorizontal) {
-					this.contentWrapper.style.transition = 'all 0.2s ease-out';
-					this.contentWrapper.style.transform = '';
-					this.contentWrapper.style.opacity = '';
-					setTimeout(() => {
-						if (this.contentWrapper) this.contentWrapper.style.transition = '';
-					}, 200);
-					if (dx > 0) this.prev();
-					else this.next();
 				} else {
 					// Spring snap back — для bottom sheet используем spring cubic-bezier
 					const easing = this.options.bottomSheet
@@ -1263,7 +922,6 @@
 			const p = this.options.closePosition;
 			if (p === 'static' || p === 'absolute' || p === 'fixed') return p;
 
-			if (this.isGallery) return 'absolute';
 			if (this.content?.classList.contains('has-iframe')) return 'absolute';
 
 			const el = this.content?.firstElementChild;
@@ -1273,7 +931,7 @@
 		}
 
 		_applyClosePosition() {
-			if (!this.closeBtn || this.options.toolbar) return;
+			if (!this.closeBtn) return;
 
 			const pos = this._getClosePosition();
 			this.closeBtn.classList.remove('lm-close-btn--static', 'lm-close-btn--absolute', 'lm-close-btn--fixed');
@@ -1298,21 +956,15 @@
 		}
 
 		_setHtmlMode(isHtml) {
-			// Slide-режим (has-html): все типы кроме bottom sheet — отступ сверху как у inline
+			// has-html — только inline/AJAX; media использует классический lightbox
 			const enable = isHtml && !this.options.bottomSheet;
 			this.contentWrapper?.classList.toggle('has-html', enable);
 			this.container?.classList.toggle('has-html-content', enable);
 
-			// В HTML-режиме слайд на весь viewport; width/height — у белой карточки (.lm-content)
 			if (!this.contentWrapper) return;
 			if (enable) {
-				this.contentWrapper.style.maxWidth = '';
-				this.contentWrapper.style.maxHeight = '';
-			} else {
-				const w = this.contentWrapper.style.getPropertyValue('--lm-max-width');
-				const h = this.contentWrapper.style.getPropertyValue('--lm-max-height');
-				if (w) this.contentWrapper.style.maxWidth = w;
-				if (h) this.contentWrapper.style.maxHeight = h;
+				this.contentWrapper.style.removeProperty('max-width');
+				this.contentWrapper.style.removeProperty('max-height');
 			}
 
 			this._applySizeVars();
@@ -1475,13 +1127,12 @@
 			this.stopMedia();
 
 			this.contentWrapper.querySelector('.lm-caption')?.remove();
-			this.container.querySelector('.lm-counter')?.remove();
 
-			for (const child of [...this.content.children]) {
-				if (child !== this.toolbar && child !== this.navGroup) child.remove();
-			}
+			this.content.replaceChildren();
 			this.content.appendChild(element);
-			this._setHtmlMode(!this.options.bottomSheet);
+			// HTML slide — только для inline/AJAX; media (img/video/iframe) — классический lightbox
+			const isMedia = !!element && /^(IMG|VIDEO|IFRAME)$/i.test(element.tagName);
+			this._setHtmlMode(!this.options.bottomSheet && !isMedia);
 			this._applyClosePosition();
 
 			const item = this.items[this.currentIndex];
@@ -1491,20 +1142,6 @@
 				this.contentWrapper.appendChild(cap);
 			}
 
-			if (this.isGallery) {
-				if (this.toolbarCounterCurrent) {
-					this.toolbarCounterCurrent.textContent = String(this.currentIndex + 1);
-					this.toolbarCounterTotal.textContent = String(this.items.length);
-				} else if (this.toolbarCounter) {
-					this.toolbarCounter.textContent = `${this.currentIndex + 1} / ${this.items.length}`;
-				} else {
-					this.container.querySelector('.lm-counter')?.remove();
-					const counter = h('div', 'lm-counter');
-					counter.textContent = `${this.currentIndex + 1} / ${this.items.length}`;
-					this.container.appendChild(counter);
-				}
-			}
-
 			if (this.removeFocusTrap) {
 				this.removeFocusTrap();
 				this.removeFocusTrap = null;
@@ -1512,21 +1149,6 @@
 			if (this.options.autoFocus) {
 				this.removeFocusTrap = trapFocus(this.container);
 			}
-
-			this._updateNavButtons();
-
-			// Zoom setup for images
-			if (this._zoomCleanup) {
-				this._zoomCleanup();
-				this._zoomCleanup = null;
-				this._zoomActive = false;
-				this.content.classList.remove('is-zoomed', 'is-zoom-dragging');
-			}
-			const isImage = element instanceof HTMLImageElement;
-			if (this.options.zoom && isImage) {
-				this._zoomCleanup = this._setupZoom(element);
-			}
-			this._updateToolbarZoomVisibility(this.options.zoom && isImage);
 
 			this.emit('contentReady', item);
 			if (this.options.formAutoReset) this._bindForms();
@@ -1572,198 +1194,6 @@
 		_isSuccessText(text) {
 			const t = text.trim().toLowerCase();
 			return t === 'ok' || t === '1' || t === 'true';
-		}
-
-		_setupZoom(img) {
-			let scale = 1, panX = 0, panY = 0, angle = 0, flipX = 1, flipY = 1;
-			let isMouseDown = false;
-			const MIN = this.options.zoomMin, MAX = this.options.zoomMax;
-			const cw = this.content;
-
-			img.classList.add('lm-zoomable');
-
-			const isTransformed = () =>
-				scale > MIN + 0.01 || Math.abs(panX) > 0.5 || Math.abs(panY) > 0.5
-				|| angle % 360 !== 0 || flipX !== 1 || flipY !== 1;
-
-			const clampPan = () => {
-				if (angle % 360 !== 0) return;
-				const ww = cw.clientWidth, wh = cw.clientHeight;
-				const maxX = Math.max(0, (img.naturalWidth * scale - ww) / (2 * scale));
-				const maxY = Math.max(0, (img.naturalHeight * scale - wh) / (2 * scale));
-				panX = Math.max(-maxX, Math.min(maxX, panX));
-				panY = Math.max(-maxY, Math.min(maxY, panY));
-			};
-
-			const applyTransform = (animated) => {
-				img.style.transition = animated ? 'transform 0.25s ease' : 'none';
-				img.style.transform =
-					`translate(${panX}px, ${panY}px) rotate(${angle}deg) scale(${scale * flipX}, ${scale * flipY})`;
-				this._zoomActive = isTransformed();
-				cw.classList.toggle('is-zoomed', this._zoomActive);
-			};
-
-			const zoomTo = (newScale, pivotX, pivotY) => {
-				const prev = scale;
-				scale = Math.max(MIN, Math.min(MAX, newScale));
-				if (pivotX !== undefined) {
-					const rect = img.getBoundingClientRect();
-					const rx = (pivotX - (rect.left + rect.width / 2)) / prev;
-					const ry = (pivotY - (rect.top + rect.height / 2)) / prev;
-					panX -= rx * (scale - prev) / scale;
-					panY -= ry * (scale - prev) / scale;
-				}
-				clampPan();
-				applyTransform(true);
-			};
-
-			const resetAll = () => {
-				scale = MIN;
-				panX = 0;
-				panY = 0;
-				angle = 0;
-				flipX = 1;
-				flipY = 1;
-				applyTransform(true);
-			};
-
-			const fitScale = () => {
-				if (!img.naturalWidth || !img.naturalHeight) return MAX;
-				return Math.min(
-					cw.clientWidth / img.naturalWidth,
-					cw.clientHeight / img.naturalHeight,
-					MAX
-				);
-			};
-
-			// Double-click
-			const onDblClick = (e) => {
-				e.stopPropagation();
-				if (isTransformed()) resetAll();
-				else zoomTo(MIN + this.options.zoomStep * 2, e.clientX, e.clientY);
-			};
-
-			// Wheel
-			const onWheel = (e) => {
-				e.preventDefault();
-				zoomTo(scale + (e.deltaY < 0 ? this.options.zoomStep : -this.options.zoomStep), e.clientX, e.clientY);
-			};
-
-			// Mouse drag pan
-			let startPX = 0, startPY = 0;
-			const onMouseDown = (e) => {
-				if (!this._zoomActive) return;
-				isMouseDown = true;
-				startPX = e.clientX - panX * scale;
-				startPY = e.clientY - panY * scale;
-				img.style.transition = 'none';
-				cw.classList.add('is-zoom-dragging');
-				e.stopPropagation();
-				e.preventDefault();
-			};
-			const onMouseMove = (e) => {
-				if (!isMouseDown) return;
-				panX = (e.clientX - startPX) / scale;
-				panY = (e.clientY - startPY) / scale;
-				clampPan();
-				applyTransform(false);
-			};
-			const onMouseUp = () => {
-				if (!isMouseDown) return;
-				isMouseDown = false;
-				cw.classList.remove('is-zoom-dragging');
-			};
-
-			// Pinch
-			let pinchDist = 0, pinchActive = false;
-			const onTouchStart = (e) => {
-				if (e.touches.length === 2) {
-					pinchActive = true;
-					pinchDist = Math.hypot(
-						e.touches[0].clientX - e.touches[1].clientX,
-						e.touches[0].clientY - e.touches[1].clientY
-					);
-					e.preventDefault();
-				}
-			};
-			const onTouchMove = (e) => {
-				if (!pinchActive || e.touches.length !== 2) return;
-				const dist = Math.hypot(
-					e.touches[0].clientX - e.touches[1].clientX,
-					e.touches[0].clientY - e.touches[1].clientY
-				);
-				const pivot = {
-					x: (e.touches[0].clientX + e.touches[1].clientX) / 2,
-					y: (e.touches[0].clientY + e.touches[1].clientY) / 2,
-				};
-				zoomTo(scale * (dist / pinchDist), pivot.x, pivot.y);
-				pinchDist = dist;
-				e.preventDefault();
-			};
-			const onTouchEnd = () => { pinchActive = false; };
-
-			cw.addEventListener('dblclick', onDblClick);
-			cw.addEventListener('wheel', onWheel, { passive: false });
-			cw.addEventListener('mousedown', onMouseDown);
-			document.addEventListener('mousemove', onMouseMove);
-			document.addEventListener('mouseup', onMouseUp);
-			cw.addEventListener('touchstart', onTouchStart, { passive: false });
-			cw.addEventListener('touchmove', onTouchMove, { passive: false });
-			cw.addEventListener('touchend', onTouchEnd, { passive: true });
-
-			this._zoomBy = (delta) => zoomTo(scale + delta);
-			this._zoomIn = () => zoomTo(scale + this.options.zoomStep);
-			this._zoomOut = () => zoomTo(scale - this.options.zoomStep);
-			this._zoomToggle1to1 = () => {
-				if (Math.abs(scale - 1) < 0.05 && Math.abs(panX) < 0.5 && Math.abs(panY) < 0.5) {
-					zoomTo(fitScale());
-				} else {
-					scale = 1;
-					panX = 0;
-					panY = 0;
-					applyTransform(true);
-				}
-			};
-			this._rotateCCW = () => { angle -= 90; applyTransform(true); };
-			this._rotateCW = () => { angle += 90; applyTransform(true); };
-			this._flipX = () => { flipX *= -1; applyTransform(true); };
-			this._flipY = () => { flipY *= -1; applyTransform(true); };
-			this._zoomReset = resetAll;
-
-			return () => {
-				img.classList.remove('lm-zoomable');
-				img.style.transform = '';
-				cw.removeEventListener('dblclick', onDblClick);
-				cw.removeEventListener('wheel', onWheel);
-				cw.removeEventListener('mousedown', onMouseDown);
-				document.removeEventListener('mousemove', onMouseMove);
-				document.removeEventListener('mouseup', onMouseUp);
-				cw.removeEventListener('touchstart', onTouchStart);
-				cw.removeEventListener('touchmove', onTouchMove);
-				cw.removeEventListener('touchend', onTouchEnd);
-				delete this._zoomBy;
-				delete this._zoomIn;
-				delete this._zoomOut;
-				delete this._zoomToggle1to1;
-				delete this._rotateCCW;
-				delete this._rotateCW;
-				delete this._flipX;
-				delete this._flipY;
-				delete this._zoomReset;
-			};
-		}
-
-		_toggleFullscreen() {
-			if (!fsAPI) return;
-			if (this._isFullscreen || fsAPI.element) {
-				fsAPI.exit().catch(() => {});
-			} else {
-				// <dialog> is in the browser top layer, so requestFullscreen on it fails.
-				// contentWrapper is a plain <div> child of the dialog — fullscreen works on it.
-				// For div-based containers (no dialog) we target the container directly.
-				const target = this.useDialog ? this.contentWrapper : this.container;
-				fsAPI.request(target, { navigationUI: 'hide' }).catch(() => {});
-			}
 		}
 
 		_sanitize(html) {
@@ -1966,19 +1396,6 @@
 			for (const fn of this._pluginCleanups) try { fn(); } catch (_) {}
 			this._pluginCleanups = [];
 
-			// Zoom cleanup
-			if (this._zoomCleanup) { this._zoomCleanup(); this._zoomCleanup = null; }
-
-			// Fullscreen cleanup
-			if (this._fullscreenHandler && fsAPI) {
-				document.removeEventListener(fsAPI.change, this._fullscreenHandler);
-				this._fullscreenHandler = null;
-			}
-			if (this._isFullscreen && fsAPI?.element) {
-				fsAPI.exit().catch(() => {});
-				this._isFullscreen = false;
-			}
-
 			this.stopMedia();
 			this._restoreTapBar();
 
@@ -2064,35 +1481,6 @@
 			this.emit('destroy');
 		}
 
-		// ─── Gallery API ─────────────────────────────────────────────────────────
-		next() {
-			if (!this.isGallery) return;
-			let idx = this.currentIndex + 1;
-			if (idx >= this.items.length) {
-				if (this.options.loop) idx = 0;
-				else return;
-			}
-			this.goTo(idx);
-		}
-
-		prev() {
-			if (!this.isGallery) return;
-			let idx = this.currentIndex - 1;
-			if (idx < 0) {
-				if (this.options.loop) idx = this.items.length - 1;
-				else return;
-			}
-			this.goTo(idx);
-		}
-
-		goTo(index) {
-			if (index < 0 || index >= this.items.length) return;
-			if (index === this.currentIndex) return;
-			this.currentIndex = index;
-			this.loadContent(this.items[index]);
-			this.emit('change', index);
-		}
-
 		// ─── Events ──────────────────────────────────────────────────────────────
 		emit(event, ...args) {
 			let result;
@@ -2161,31 +1549,15 @@
 				if (!trigger) return;
 				e.preventDefault();
 
-				const galleryName = trigger.dataset.gallery;
-				let items = [], startIndex = 0;
+				const items = [{
+					src: trigger.getAttribute('href') || trigger.dataset.src,
+					type: trigger.dataset.type,
+					caption: trigger.dataset.caption || trigger.getAttribute('title'),
+					alt: trigger.dataset.alt,
+					dataSrcAdd: trigger.dataset.srcAdd
+				}];
 
-				if (galleryName) {
-					document.querySelectorAll(`[data-gallery="${galleryName}"]`).forEach((el, i) => {
-						if (el === trigger) startIndex = i;
-						items.push({
-							src: el.getAttribute('href') || el.dataset.src,
-							type: el.dataset.type,
-							caption: el.dataset.caption || el.getAttribute('title'),
-							alt: el.dataset.alt,
-							dataSrcAdd: el.dataset.srcAdd
-						});
-					});
-				} else {
-					items = [{
-						src: trigger.getAttribute('href') || trigger.dataset.src,
-						type: trigger.dataset.type,
-						caption: trigger.dataset.caption || trigger.getAttribute('title'),
-						alt: trigger.dataset.alt,
-						dataSrcAdd: trigger.dataset.srcAdd
-					}];
-				}
-
-				const options = { startIndex };
+				const options = {};
 				for (const key in trigger.dataset) {
 					if (key.startsWith('lm')) {
 						let val = trigger.dataset[key];
