@@ -1,4 +1,12 @@
 @charset "UTF-8";
+
+:root {
+  --basic-perlino: #EAEADE;
+  --scrollbar-thumb: #c4c4c4;
+  --scrollbar-track: transparent;
+  --scrollbar-thumb-accent: #CF4D03;
+}
+
 *,
 *::before,
 *::after {
@@ -9,9 +17,31 @@
 }
 
 html {
-  scroll-behavior: smooth;
-  text-rendering: optimizeLegibility;
-  -webkit-text-size-adjust: 100%;
+  scrollbar-width: thin;
+  scrollbar-gutter: auto;
+  interpolate-size: allow-keywords;
+  scrollbar-color: var(--scrollbar-thumb-accent) var(--basic-perlino);
+}
+
+html::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+html::-webkit-scrollbar-track {
+  background: var(--basic-perlino);
+}
+
+html::-webkit-scrollbar-thumb {
+  background-color: var(--scrollbar-thumb-accent);
+  border-radius: var(--radius-pill);
+}
+
+@supports not selector(::-webkit-scrollbar) {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar-thumb-accent) var(--basic-perlino);
+  }
 }
 
 body {
@@ -65,6 +95,7 @@ a {
   color: inherit;
   text-decoration: none;
 }
+
 a:focus-visible {
   outline: 2px solid #FFFFFF;
   outline-offset: 2px;
@@ -88,6 +119,7 @@ svg {
     max-width: none;
   }
 }
+
 /* Альтернативный способ для Firefox (устаревший, но может понадобиться для старых версий) */
 /* @-moz-document url-prefix() {
 	svg {
@@ -138,7 +170,10 @@ input[type=number] {
   -moz-appearance: textfield;
 }
 
-input[type=search]::-webkit-search-decoration, input[type=search]::-webkit-search-cancel-button, input[type=search]::-webkit-search-results-button, input[type=search]::-webkit-search-results-decoration {
+input[type=search]::-webkit-search-decoration,
+input[type=search]::-webkit-search-cancel-button,
+input[type=search]::-webkit-search-results-button,
+input[type=search]::-webkit-search-results-decoration {
   -webkit-appearance: none;
 }
 
@@ -147,12 +182,14 @@ input[type=submit],
 input[type=button] {
   cursor: pointer;
 }
+
 button::-moz-focus-inner,
 input[type=submit]::-moz-focus-inner,
 input[type=button]::-moz-focus-inner {
   border: 0;
   padding: 0;
 }
+
 button,
 input[type=submit],
 input[type=button] {
@@ -220,6 +257,7 @@ summary {
   html {
     scroll-behavior: auto;
   }
+
   *,
   *::before,
   *::after {
@@ -229,73 +267,75 @@ summary {
     scroll-behavior: auto !important;
   }
 }
+
 /* High contrast mode support */
 @media (prefers-contrast: high) {
   * {
     border-color: currentColor;
   }
 }
+
 .container {
-	max-width: 800px;
-	margin: 0 auto;
-	background: rgba(255, 255, 255, 0.95);
-	padding: 2rem;
-	border-radius: 16px;
-	backdrop-filter: blur(20px);
+  max-width: 800px;
+  margin: 0 auto;
+  background: rgba(255, 255, 255, 0.95);
+  padding: 2rem;
+  border-radius: 16px;
+  backdrop-filter: blur(20px);
 }
 
 .demo-button {
-	background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-	color: white;
-	border: none;
-	padding: 12px 24px;
-	border-radius: 8px;
-	cursor: pointer;
-	margin: 10px;
-	font-size: 16px;
-	transition: transform 0.2s;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 8px;
+  cursor: pointer;
+  margin: 10px;
+  font-size: 16px;
+  transition: transform 0.2s;
 }
 
 .demo-button:hover {
-	transform: translateY(-2px);
+  transform: translateY(-2px);
 }
 
 .demo-form {
-	max-width: 400px;
+  max-width: 400px;
 }
 
 .demo-form label {
-	display: block;
-	margin-bottom: 5px;
-	font-weight: 500;
+  display: block;
+  margin-bottom: 5px;
+  font-weight: 500;
 }
 
 .demo-form input,
 .demo-form textarea {
-	width: 100%;
-	padding: 8px 12px;
-	margin-bottom: 15px;
-	border: 1px solid #ddd;
-	border-radius: 6px;
-	box-sizing: border-box;
-	font-size: 14px;
+  width: 100%;
+  padding: 8px 12px;
+  margin-bottom: 15px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  box-sizing: border-box;
+  font-size: 14px;
 }
 
 .demo-form button {
-	background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-	color: white;
-	padding: 10px 20px;
-	border: none;
-	border-radius: 6px;
-	cursor: pointer;
-	font-size: 14px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 10px 20px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
 }
 
 /* Demo-only: legacy inline div на странице (без <template>) */
 .inline-content {
-	display: none !important;
+  display: none !important;
 }
 
 .lm-content .inline-content {
-	display: block !important;
+  display: block !important;
 }
